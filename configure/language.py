@@ -1,18 +1,4 @@
-import os
-import locale
-import logging
-
-# 当前执行目录
-rootdir = os.getcwd().replace('\\', '/')
-logging.basicConfig(
-    level=logging.INFO,
-    filename=f'{rootdir}/video.log',
-    encoding="utf-8",
-    filemode="a")
-logger = logging.getLogger('VideoTrans')
-
-defaulelang = "zh"
-translist = {
+translate_language = {
     "zh": {
         "selectmp4": "选择mp4视频",
         "selectsavedir": "选择翻译后存储目录",
@@ -29,20 +15,24 @@ translist = {
         "stop": "已停止(点击开始)",
         "subtitleandvoice_role": "不能既不嵌入字幕又不选择配音角色，二者至少选一",
         "waitrole":"正在获取可用配音角色，请稍等重新选择",
-        "downloadmodel":"模型不存在将自动下载，你也可以手动下载，具体请查看文档说明。当前模型存放路径:",
+        "downloadmodel":"模型不存在，请去下载后存放到:",
         "modelpathis":"当前模型路径是:",
         "modellost":"模型下载出错或者下载不完整，请重新下载后存放到 models目录下",
         "embedsubtitle":"硬字幕嵌入",
         "softsubtitle":"软字幕",
-        "nosubtitle":"不添加字幕"
+        "nosubtitle":"不添加字幕",
+        "baikeymust":"你必须填写百度key",
+        "chatgptkeymust":"你必须填写chatGPT key",
     },
     "en": {
+        "baikeymust":"input your baidu key",
+        "chatgptkeymust":"input your chatgpt key",
         "nosubtitle":"No Subtitle",
         "embedsubtitle":"Embed subtitle",
         "softsubtitle":"Soft subtitle",
         "modellost":"There is an error in the model download or the download is incomplete. Please re-download and store it in the models directory.",
         "modelpathis":"Model storage path:",
-        "downloadmodel":"Model does not exist, will be downloaded automatically.you can manual download it manually. after read the documentation. model storage path:",
+        "downloadmodel":"Model does not exist, download it and save to:",
         "waitrole":"getting voice role list,hold on",
         "selectsavedir": "select an dir for output",
         "selectmp4": "select an mp4 video",
@@ -60,45 +50,45 @@ translist = {
         "stop": "Stop(click start)"
     }
 }
-langcode = locale.getdefaultlocale()[0]
-if langcode.split('_')[0].lower() != 'zh':
-    defaulelang = "en"
-    transobj = translist['en']
-    langlist = {
-        "Simplified_Chinese": ['zh-cn', 'chi'],
-        "Traditional_Chinese": ['zh-tw', 'chi'],
-        "English": ['en', 'eng'],
-        "French": ['fr', 'fre'],
-        "German": ['de', 'ger'],
-        "Japanese": ['ja', 'jpn'],
-        "Korean": ['ko', 'kor'],
-        "Russian": ['ru', 'rus'],
-        "Spanish": ['es', 'spa'],
-        "Thai": ['th', 'tha'],
-        "Italian": ['it', 'ita'],
-        "Portuguese": ['pt', 'por'],
-        "Vietnamese": ['vi', 'vie'],
-        "Arabic": ['ar', 'are']
-    }
-else:
-    transobj = translist['zh']
-    langlist = {
-        "中文简": ['zh-cn', 'chi'],
-        "中文繁": ['zh-tw', 'chi'],
-        "英语": ['en', 'eng'],
-        "法语": ['fr', 'fre'],
-        "德语": ['de', 'ger'],
-        "日语": ['ja', 'jpn'],
-        "韩语": ['ko', 'kor'],
-        "俄语": ['ru', 'rus'],
-        "西班牙语": ['es', 'spa'],
-        "泰国语": ['th', 'tha'],
-        "意大利语": ['it', 'ita'],
-        "葡萄牙语": ['pt', 'por'],
-        "越南语": ['vi', 'vie'],
-        "阿拉伯语": ['ar', 'are']
-    }
 
+
+#  名称:google翻译，字幕语言，百度翻译
+language_code_list={
+    "zh":{
+        "中文简": ['zh-cn', 'chi','zh'],
+        "中文繁": ['zh-tw', 'chi','zh'],
+        "英语": ['en', 'eng','en'],
+        "法语": ['fr', 'fre','fra'],
+        "德语": ['de', 'ger','de'],
+        "日语": ['ja', 'jpn','jp'],
+        "韩语": ['ko', 'kor','kor'],
+        "俄语": ['ru', 'rus','ru'],
+        "西班牙语": ['es', 'spa','spa'],
+        "泰国语": ['th', 'tha','th'],
+        "意大利语": ['it', 'ita','it'],
+        "葡萄牙语": ['pt', 'por','pt'],
+        "越南语": ['vi', 'vie','vie'],
+        "阿拉伯语": ['ar', 'are','ara']
+    },
+    "en":{
+        "Simplified_Chinese": ['zh-cn', 'chi','zh'],
+        "Traditional_Chinese": ['zh-tw', 'chi','zh'],
+        "English": ['en', 'eng','en'],
+        "French": ['fr', 'fre','fra'],
+        "German": ['de', 'ger','de'],
+        "Japanese": ['ja', 'jpn','jp'],
+        "Korean": ['ko', 'kor','kor'],
+        "Russian": ['ru', 'rus','ru'],
+        "Spanish": ['es', 'spa','spa'],
+        "Thai": ['th', 'tha','th'],
+        "Italian": ['it', 'ita','it'],
+        "Portuguese": ['pt', 'por','pt'],
+        "Vietnamese": ['vi', 'vie','vie'],
+        "Arabic": ['ar', 'are','ara']
+    }
+}
+
+# cli language ccode
 clilanglist = {
     "zh-cn": ['zh-cn', 'chi'],
     "zh-tw": ['zh-tw', 'chi'],
@@ -115,34 +105,4 @@ clilanglist = {
     "vi": ['vi', 'vie'],
     "ar": ['ar', 'are']
 }
-
-# 添加环境变量 ffmpeg
-os.environ['PATH'] = rootdir + ';' + os.environ['PATH']
-
-# 存放每个视频处理的时间
-timelist = {}
-
-# 开始按钮状态
-current_status = "stop"
-# 配置
-video = {
-    "source_mp4": "",
-    "target_dir": "",
-
-    "source_language": "en",
-    "detect_language": "en",
-
-    "target_language": "zh-cn",
-    "subtitle_language": "chi",
-
-    "voice_role": "No",
-    "voice_rate": "0",
-
-    "voice_silence": "500",
-    "whisper_model": "base",
-    # "insert_subtitle": True,
-    "subtitle_type":0, # embed soft
-    "voice_autorate": False,
-    "remove_background": False
-}
-voice_list = None
+english_code_bygpt=list(language_code_list['en'].keys())

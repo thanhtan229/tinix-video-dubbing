@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-
 import asyncio
+import hashlib
 import re
 import shutil
 import subprocess
+import time
 import urllib.parse
 import httpx
 import requests
@@ -15,10 +16,29 @@ import srt
 from datetime import timedelta
 import json
 import edge_tts
-import config
-from config import logger
+import openai
+import textwrap
+
+from . import config
+from .config import logger
 
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
+# delete tmp files
+def delete_temp(dirname="", noextname=""):
+    if os.path.exists(f"{config.rootdir}/tmp"):
+        shutil.rmtree(f"{config.rootdir}/tmp")
+    if os.path.exists(f"{dirname}/{noextname}vocals.wav"):
+        os.unlink(f"{dirname}/{noextname}vocals.wav")
+    if os.path.exists(f"{dirname}/{noextname}accompaniment.wav"):
+        os.unlink(f"{dirname}/{noextname}accompaniment.wav")
+    if os.path.exists(f"{dirname}/##{noextname}vocals_tmp"):
+        shutil.rmtree(f"{dirname}/##{noextname}vocals_tmp")
+    if os.path.exists(f"{dirname}/{noextname}.wav"):
+        os.unlink(f"{dirname}/{noextname}.wav")
+    if os.path.exists(f"{dirname}/##{noextname}_tmp"):
+        shutil.rmtree(f"{dirname}/##{noextname}_tmp")
 
 
 #  get role by edge tts
@@ -129,6 +149,69 @@ def googletrans(text, src, dest):
         return "[error google api] Please check the connectivity of the proxy or consider changing the IP address."
     return "error on translation" if len(re_result) < 1 else re_result[0]
 
+# baidu translate
+def baidutrans(text,src,dest):
+    # 拼接appid = 2015063000000001 + q = apple + salt = 1435660288 + 密钥 = 12345678
+    salt=int(time.time())
+    strtext=f"{config.video['baidu_appid']}{text}{salt}{config.video['baidu_miyue']}"
+    print(f"====baidu api translate")
+    md5 = hashlib.md5()
+    md5.update(strtext.encode('utf-8'))
+    sign = md5.hexdigest()
+    try:
+        res=requests.get(f"http://api.fanyi.baidu.com/api/trans/vip/translate?q={text}&from=auto&to={dest}&appid={config.video['baidu_appid']}&salt={salt}&sign={sign}")
+        res=res.json()
+        if "error_code" in res:
+            return "baidu api error:"+res['error_msg']
+        comb=""
+        for it in res['trans_result']:
+            comb+=it['dst']
+        return comb
+    except Exception as e:
+        return "baidu api error:"+str(e)
+
+# by chatGPT
+def chatgpttrans(text):
+    if re.match(r'^[.,=_?!@#$%^&*()+\s -]+$',text):
+        return text
+    if config.video['proxy']:
+        proxies = {
+            'http': 'http://%s' % config.video['proxy'].replace("http://",''),
+            'https': 'http://%s' % config.video['proxy'].replace("http://",'')
+        }
+        # openai.proxy = proxies
+    if config.video['chatgpt_api']:
+        openai.api_base=config.video['chatgpt_api']
+    openai.api_key=config.video['chatgpt_key']
+
+    print(f"openai.base=={openai.api_base}")
+
+    messages = [
+        {'role': 'system',
+         'content':f"  You are a professional translation engine, please translate the text into a concise,  elegant and fluent content, without referencing machine translations.   You must only translate the text, never interpret it. Translate to {config.video['target_language_chatgpt']}, If translation is not possible or there are errors in the translation, do not i am sorry, do not prompt for errors, and directly force the translation" },
+        {'role': 'user', 'content': f"{text}\n"},
+    ]
+    print(messages)
+    try:
+        response = openai.ChatCompletion.create(
+            model='gpt-3.5-turbo',
+            messages=messages,
+            max_tokens=2048
+        )
+    except Exception as e:
+        return f"chatgpt translate error:"+str(e)
+    if response['code']!=0 and response['message']:
+        return response['message']
+    data=response.data
+    print(data)
+    for choice in data.choices:
+        if 'text' in choice:
+            return choice.text
+    result= data.choices[0].message.content.strip()
+    if re.match(r"Sorry, but I'm unable to translate the content",result,re.I):
+        return "no translate"
+    return result
+
 
 # speed change
 def speed_change(sound, speed=1.0):
@@ -166,7 +249,7 @@ def get_large_audio_transcription(aud_path, mp4name, sub_name, showprocess):
     if not os.path.isdir(tmp_path):
         os.makedirs(tmp_path, 0o777, exist_ok=True)
     r = sr.Recognizer()
-    # 已存在字幕文件则跳过
+
     if os.path.exists(sub_name):
         os.unlink(sub_name)
 
@@ -177,8 +260,6 @@ def get_large_audio_transcription(aud_path, mp4name, sub_name, showprocess):
         with open(nonslient_file, 'r') as infile:
             nonsilent_data = json.load(infile)
     else:
-        showprocess(f"{mp4name} create json", 'logs')
-
         if config.current_status == 'stop':
             return
         nonsilent_data = shorten_voice(normalized_sound)
@@ -186,10 +267,15 @@ def get_large_audio_transcription(aud_path, mp4name, sub_name, showprocess):
         with open(nonslient_file, 'w') as outfile:
             json.dump(nonsilent_data, outfile)
 
+    # subtitle
     subs = []
-    showprocess(f"{mp4name} translate", 'logs')
+    # all audio chunk
     segments = []
+    # every start time
     start_times = []
+
+    # max words every line
+    maxlen = 36 if config.video['target_language'][:2] in ["zh", "ja","jp", "ko"] else 80
     for i, duration in enumerate(nonsilent_data):
         if config.current_status == 'stop':
             return
@@ -209,14 +295,13 @@ def get_large_audio_transcription(aud_path, mp4name, sub_name, showprocess):
             audio_listened = r.record(source)
             logger.info(f"sr.AudioFile:{chunk_filename=}")
             try:
-                options={"download_root":config.rootdir + "/models"}
+                options = {"download_root": config.rootdir + "/models"}
                 text = r.recognize_whisper(audio_listened,
                                            language="zh" if config.video['detect_language'] == "zh-cn" or
                                                             config.video['detect_language'] == "zh-tw" else
                                            config.video['detect_language'],
                                            model=config.video['whisper_model'],
                                            load_options=options)
-                logger.info(f"Recongize Okay")
             except sr.UnknownValueError as e:
                 logger.error("Recognize Error: ", str(e))
                 segments.append(audio_chunk)
@@ -229,23 +314,35 @@ def get_large_audio_transcription(aud_path, mp4name, sub_name, showprocess):
                 return
             text = f"{text.capitalize()}. "
             try:
-                result = googletrans(text, config.video['source_language'],
-                                     config.video['target_language'])
+                print(f"translate_type============={config.video['translate_type']}")
+                if config.video['translate_type']=='google':
+                    result = googletrans(text, config.video['source_language'],
+                                         config.video['target_language'])
+                elif config.video['translate_type']=='baidu':
+                    result = baidutrans(text, 'auto', config.video['target_language'])
+                elif config.video['translate_type']=='chatGPT':
+                    result = chatgpttrans(text)
+
                 logger.info(f"target_language={config.video['target_language']},[translate ok]\n")
             except Exception as e:
                 logger.error("Translate Error:", str(e))
                 segments.append(audio_chunk)
                 continue
+            # exists text vaild
             isemtpy = True
             if not re.fullmatch(r'^[./\\。，/\s]*$', result.strip(), re.I):
                 isemtpy = False
-
                 combo_txt = result + '\n\n'
-                if len(result)>30:
-                    result_tmp = ""
-                    for tmp_i in range(1 + len(result) // 30):
-                        result_tmp += result[tmp_i * 30:tmp_i * 30 + 30] + "\n"
-                    combo_txt = result_tmp.strip()+ '\n\n'
+                if len(result) > maxlen:
+                    if maxlen==36:
+                        #zh ja ko
+                        result_tmp = ""
+                        for tmp_i in range(1 + len(result) // maxlen):
+                            result_tmp += result[tmp_i * maxlen:tmp_i * maxlen + maxlen] + "\n"
+                        combo_txt = result_tmp.strip() + '\n\n'
+                    else:
+                        #en
+                        combo_txt=textwrap.fill(result,maxlen)+"\n\n"
                 if buffered:
                     end_time -= 500
                 start = timedelta(milliseconds=start_time)
@@ -257,6 +354,7 @@ def get_large_audio_transcription(aud_path, mp4name, sub_name, showprocess):
                 showprocess(f"{start} --> {end} {combo_txt}", 'subtitle')
                 subs.append(sub)
 
+            #  voice role
             if config.video['voice_role'] != 'No':
                 if isemtpy:
                     segments.append(AudioSegment.silent(duration=end_time - start_time))
@@ -283,45 +381,48 @@ def get_large_audio_transcription(aud_path, mp4name, sub_name, showprocess):
                         showprocess(f"new mp3 length bigger than wav ,speed up {speed} ", 'logs')
                         audio_data = speed_change(audio_data, speed)
                         showprocess(f"change after:{len(audio_data)}", 'logs')
+                    segments.append(audio_data)
                 except Exception as e:
                     logger.error("Create voice role error:" + str(e))
                     print(e)
-                    # audio_data = AudioSegment.silent(duration=end_time - start_time)
                     segments.append(audio_chunk)
-                segments.append(audio_data)
-
+    # merge translate audo
     merge_audio_segments(segments, start_times, total_length * 1000, mp4name)
     final_srt = srt.compose(subs)
     with open(sub_name, 'w', encoding="utf-8") as f:
         f.write(final_srt)
-
     showprocess(f"{mp4name} add subtitle", 'logs')
+
     # target  output mp4 filepath
     target_mp4 = config.video['target_dir'] + f"/{mp4name}"
     # raw mp4 filepath
     source_mp4 = folder_path + f"/{mp4name}"
     logger.info(f"{target_mp4=}\n{source_mp4=}")
-    # add voice dubbing and subtitle
-    if config.video['voice_role'] != 'No' and config.video['subtitle_type']>0:
-        # get no voice mp4
+    # has voice role and create novoice mp4
+    if config.video['voice_role'] != 'No':
         runffmpeg(f"-y -i {source_mp4} -c:v copy -an {config.rootdir}/tmp/novoice_{mp4name}")
+
+    if config.video['voice_role'] != 'No' and config.video['subtitle_type'] > 0:
         # embed subtitle
-        if config.video['subtitle_type']==1:
-            shutil.copy(sub_name,f"{config.rootdir}/1.srt")
-            runffmpeg(f"-y -i {config.rootdir}/tmp/novoice_{mp4name}  -i {config.rootdir}/tmp/{mp4name}.wav  -c:v libx264 -c:a aac -vf subtitles=1.srt {target_mp4}")
+        if config.video['subtitle_type'] == 1:
+            shutil.copy(sub_name, f"{config.rootdir}/{mp4name}.srt")
+            runffmpeg(
+                f"-y -i {config.rootdir}/tmp/novoice_{mp4name}  -i {config.rootdir}/tmp/{mp4name}.wav  -c:v libx264 -c:a aac -vf subtitles={mp4name}.srt {target_mp4}")
         else:
             # soft subtitle
-            runffmpeg(f"-y -i {config.rootdir}/tmp/novoice_{mp4name}  -i {config.rootdir}/tmp/{mp4name}.wav -sub_charenc UTF-8 -f srt  -i {sub_name} -c:v libx264 -c:a aac -c:s mov_text -metadata:s:s:0 language={config.video['subtitle_language']} {target_mp4}")
+            runffmpeg(
+                f"-y -i {config.rootdir}/tmp/novoice_{mp4name}  -i {config.rootdir}/tmp/{mp4name}.wav -sub_charenc UTF-8 -f srt  -i {sub_name} -c:v libx264 -c:a aac -c:s mov_text -metadata:s:s:0 language={config.video['subtitle_language']} {target_mp4}")
     elif config.video['voice_role'] != 'No':
         # only voice dubbing no subtitle
-        runffmpeg(f"-y -i {config.rootdir}/tmp/novoice_{mp4name}  -i {config.rootdir}/tmp/{mp4name}.wav  -c:v libx264 -c:a aac  {target_mp4}")
-    # inert subtitle
-    elif config.video['subtitle_type']==1:
-        # no voice dubble only  embed subtitle
-        shutil.copy(sub_name,f"{config.rootdir}/1.srt")
         runffmpeg(
-            f"-y -i {source_mp4}  -c:v libx264 -c:a aac -vf subtitles=1.srt {target_mp4}")
-    elif config.video['subtitle_type']==2:
+            f"-y -i {config.rootdir}/tmp/novoice_{mp4name}  -i {config.rootdir}/tmp/{mp4name}.wav  -c:v libx264 -c:a aac  {target_mp4}")
+    # inert subtitle
+    elif config.video['subtitle_type'] == 1:
+        # no voice dubble only  embed subtitle
+        shutil.copy(sub_name, f"{config.rootdir}/{mp4name}.srt")
+        runffmpeg(
+            f"-y -i {source_mp4}  -c:v libx264 -c:a aac -vf subtitles={mp4name}.srt {target_mp4}")
+    elif config.video['subtitle_type'] == 2:
         # no voice dubble only soft subtitle
         runffmpeg(
             f"-y -i {source_mp4} -sub_charenc UTF-8 -f srt -i {sub_name} -c:v libx264  -c:s mov_text -metadata:s:s:0 language={config.video['subtitle_language']} {target_mp4}")
