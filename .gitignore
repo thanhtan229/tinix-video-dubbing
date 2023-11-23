@@ -4,6 +4,7 @@
 .git
 .github
 .idea
+tmp
 models/*.pt
 dev
 venv
@@ -15,8 +16,6 @@ ffmpeg.exe
 ffprobe.exe
 ffplay.exe
 __pycache__
-sp.spec
-sp.json
-tmp
-voice_list.json
+*.spec
+*.json
 *.ui
