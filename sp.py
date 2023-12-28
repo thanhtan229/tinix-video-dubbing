@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import QMainWindow, QApplication, QMessageBox, QFileDialog,
 import warnings
 
 from videotrans.component.set_form import InfoForm, AzureForm, GeminiForm
+from videotrans.spwin import MainWindow
 from videotrans.task.check_update import CheckUpdateWorker
 from videotrans.task.logs_worker import LogsWorker
 from videotrans.task.main_worker import Worker, Shiting
@@ -32,6 +33,7 @@ from videotrans.util.tools import show_popup, set_proxy, set_process, get_edge_r
 from videotrans.configure import config
 import pygame
 
+'''
 if config.defaulelang == "zh":
     from videotrans.ui.cn import Ui_MainWindow
 else:
@@ -1461,6 +1463,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         config.task_countdown = 0
         return True
 
+'''
 
 def pygameinit():
     pygame.init()
