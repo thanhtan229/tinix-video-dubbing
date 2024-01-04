@@ -52,6 +52,7 @@ class TransCreate():
             else:
                 self.target_dir = config.params['target_dir'].replace('\\', '/')
         # 全局目标，用于前台打开
+        self.target_dir=self.target_dir.replace('//', '/')
         config.params['target_dir']=self.target_dir
         #真实具体到每个文件目标
         self.target_dir += f"/{self.noextname}"
@@ -179,7 +180,10 @@ class TransCreate():
             try:
                 if isinstance(res, tuple):
                     self.exec_tts(res[0], res[1])
+                if config.current_status !='ing':
+                    return False
             except Exception as e:
+                config.current_status='stop'
                 set_process("[error]" + str(e), "error")
                 delete_temp(self.noextname)
                 return False
@@ -362,7 +366,7 @@ class TransCreate():
             with open(nonslient_file, 'w') as outfile:
                 json.dump(nonsilent_data, outfile)
         #r = sr.Recognizer()
-        r = WhisperModel(config.params['whisper_model'], device=device,  compute_type="int8" if device=='cpu' else "int8_float16", download_root=config.rootdir + "/models")
+        r = WhisperModel(config.params['whisper_model'], device=device,  compute_type="int8" if device=='cpu' else "int8_float16", download_root=config.rootdir + "/models",local_files_only=True)
         raw_subtitles = []
         offset = 0
         language="zh" if config.params['detect_language'] == "zh-cn" or config.params['detect_language'] == "zh-tw" else config.params['detect_language']
@@ -433,7 +437,7 @@ class TransCreate():
         language = "zh" if config.params['detect_language'] in ["zh-cn", "zh-tw"] else config.params['detect_language']
         set_process(f"Model:{model} ")
         try:
-            model = WhisperModel(config.params['whisper_model'], device=device, compute_type="int8" if device=='cpu' else "int8_float16", download_root=config.rootdir + "/models")
+            model = WhisperModel(config.params['whisper_model'], device=device, compute_type="int8" if device=='cpu' else "int8_float16", download_root=config.rootdir + "/models",local_files_only=True)
             segments,_ = model.transcribe(self.targetdir_source_wav, 
                             beam_size=5,  
                             vad_filter=True,
@@ -663,284 +667,204 @@ class TransCreate():
         # 预先创建好的
         # 处理过程中不断变化的 novoice_mp4
         novoice_mp4_tmp = f"{self.cache_folder}/novoice_tmp.mp4"
+        novoice_mp4_tmp2 = f"{self.cache_folder}/novoice_tmp2.mp4"
 
         queue_copy = copy.deepcopy(queue_params)
         # 判断novoice_mp4是否完成
         if not is_novoice_mp4(self.novoice_mp4, self.noextname):
             return False
         total_length = 0
+        tmppert = f"{self.cache_folder}/tmppert.mp4"
+        tmppert2 = f"{self.cache_folder}/tmppert2.mp4"
+        tmppert3 = f"{self.cache_folder}/tmppert3.mp4"
+        # 上一个片段的结束时间，用于判断是否需要复制上一个和当前2个片段中间的片段
+        last_endtime=0
+        offset=0
         try:
             # 增加的时间，用于 修改字幕里的开始显示时间和结束时间
-            offset = 0
             last_index = len(queue_params) - 1
-            # set_process(f"原mp4长度={source_mp4_total_length=}")
             line_num = 0
             cut_clip = 0
-            srtmeta = []
+            if queue_copy[0]['start_time']>0:
+                cut_from_video(ss="0",to=queue_copy[0]['endraw'],source=self.novoice_mp4, out=novoice_mp4_tmp)
+                last_endtime=queue_copy[0]['start_time']
             for (idx, it) in enumerate(queue_params):
                 if config.current_status != 'ing':
                     return False
                 # 原发音时间段长度
                 wavlen = it['end_time'] - it['start_time']
-                if wavlen == 0:
-                    # 舍弃
-                    continue
+
                 line_num += 1
-                srtmeta_item = {
-                    'dubbing_time': -1,
-                    'source_time': -1,
-                    'speed_down': -1,
-                    "text": it['text'],
-                    "line": line_num
-                }
+
+                it['start_time']+=offset
                 # 该片段配音失败
                 if not os.path.exists(it['filename']) or os.path.getsize(it['filename']) == 0:
-                    total_length += wavlen
-                    it['start_time'] += offset
                     it['end_time'] = it['start_time'] + wavlen
                     it['startraw'] = ms_to_time_string(ms=it['start_time'])
                     it['endraw'] = ms_to_time_string(ms=it['end_time'])
-
                     start_times.append(it['start_time'])
                     segments.append(AudioSegment.silent(duration=wavlen))
-                    # set_process(f"此 {it['startraw']} - {it['endraw']} 时间段内字幕合成语音失败", 'logs')
-                    srtmeta.append(srtmeta_item)
                     queue_params[idx] = it
                     continue
+
                 audio_data = AudioSegment.from_file(it['filename'], format="mp3")
 
                 # 新发音长度
                 mp3len = len(audio_data)
                 if mp3len == 0:
-                    srtmeta.append(srtmeta_item)
                     continue
-                srtmeta_item['dubbing_time'] = mp3len
-                srtmeta_item['source_time'] = wavlen
-                srtmeta_item['speed_down'] = 0
 
-                # 先判断，如果 新时长大于旧时长，需要处理，这个最好需要加到 offset
+
+                # 先判断，如果 新时长大于旧时长，需要处理
                 diff = mp3len - wavlen
+                logger.info(f'\n{idx=},{mp3len=},{wavlen=},{diff=}')
                 # 新时长大于旧时长，视频需要降速播放
+                set_process(f"[{idx+1}/{last_index+1}] Video speed {diff=}")
                 if diff > 0:
-                    # 总时长 毫秒
-                    total_length += mp3len
-                    # 调整视频，新时长/旧时长
-                    pts = round(mp3len / wavlen, 2)
-                    if pts != 0:
-                        srtmeta_item['speed_down'] = round(1 / pts, 2)
-                    # 第一个命令
-                    startmp4 = f"{self.cache_folder}/novice-{idx}-start.mp4"
-                    clipmp4 = f"{self.cache_folder}/novice-{idx}-clip.mp4"
-                    endmp4 = f"{self.cache_folder}/novice-{idx}-end.mp4"
-                    # 开始时间要加上 offset
-                    it['start_time'] += offset
                     it['end_time'] = it['start_time'] + mp3len
                     it['startraw'] = ms_to_time_string(ms=it['start_time'])
                     it['endraw'] = ms_to_time_string(ms=it['end_time'])
+                    offset+=diff
+                    # 调整视频，新时长/旧时长
+                    pts = round(mp3len / wavlen, 2)
+                    logger.info(f"{idx=},{diff=},{cut_clip=},Video speed -{pts}")
 
-                    offset += diff
-                    set_process(f"Video speed -{srtmeta_item['speed_down']}")
-                    if cut_clip == 0 and it['start_time'] == 0:
-                        # set_process(f"当前是第一个，并且以0时间值开始，需要 clipmp4和endmp4 2个片段")
-                        # 当前是第一个并且从头开始，不需要 startmp4, 共2个片段直接截取 clip 和 end
-                        cut_from_video(ss="0",
-                                       to="00:00:00.500" if wavlen < 500 else queue_copy[idx]['endraw'],
-                                       source=self.novoice_mp4, pts=pts, out=clipmp4)
-                        runffmpeg([
-                            "-y",
-                            "-ss",
-                            queue_copy[idx]['endraw'].replace(',', '.'),
-                            "-i",
-                            f'{self.novoice_mp4}',
-                            "-c",
-                            "h264_nvenc" if config.params["cuda"] else "copy",
-                            f'{endmp4}'
-                        ])
-                    elif cut_clip == 0 and it['start_time'] > 0:
-                        # set_process(f"当前是第一个，但不是以0时间值开始，需要 startmp4 clipmp4和endmp4 3个片段")
-                        # 如果是第一个，并且不是从头开始的，则从原始提取开头的片段，startmp4 climp4 endmp4
-                        runffmpeg([
-                            "-y",
-                            "-ss",
-                            "0",
-                            "-t",
-                            "00:00:00.500" if it['start_time'] < 500 else queue_copy[idx]["startraw"].replace(',', '.'),
-                            "-i",
-                            f'{self.novoice_mp4}',
-                            "-c",
-                            "h264_nvenc" if config.params["cuda"] else "copy",
-                            f'{startmp4}'
-                        ])
-                        cut_from_video(ss=queue_copy[idx]['startraw'],
-                                       to=ms_to_time_string(ms=queue_copy[idx]['start_time'] + 500).replace(',',
-                                                                                                            '.') if wavlen < 500 else
-                                       queue_copy[idx]['endraw'],
-                                       source=self.novoice_mp4, pts=pts, out=clipmp4)
-                        # 从原始提取结束 end
-                        runffmpeg([
-                            "-y",
-                            "-ss",
-                            queue_copy[idx]['endraw'].replace(',', '.'),
-                            "-i",
-                            f'{self.novoice_mp4}',
-                            "-c",
-                            "h264_nvenc" if config.params["cuda"] else "copy",
-                            f'{endmp4}'
-                        ])
-                    elif (idx == last_index) and queue_copy[idx]['end_time'] < source_mp4_total_length:
-                        #  是最后一个，但没到末尾，后边还有片段
-                        #  start部分从  tmp 里获取
-                        # set_process(f"当前是最后一个，没到末尾，需要 startmp4和 clipmp4 和 endmp4")
-                        runffmpeg([
-                            "-y",
-                            "-ss",
-                            "0",
-                            "-t",
-                            it["startraw"].replace(',', '.'),
-                            "-i",
-                            f'{novoice_mp4_tmp}',
-                            "-c",
-                            "h264_nvenc" if config.params["cuda"] else "copy",
-                            f'{startmp4}'
-                        ])
-                        to_time = queue_copy[idx]['end_time']
-                        ss_time = queue_copy[idx]['start_time']
-                        if wavlen < 500:
-                            to_time = queue_copy[idx]['start_time'] + 500
-                            to_time = to_time if to_time < source_mp4_total_length else source_mp4_total_length
-                            ss_time = ss_time if to_time - ss_time >= 500 else to_time - 500
-                        cut_from_video(ss=ms_to_time_string(ms=ss_time).replace(',', '.'),
-                                       to=ms_to_time_string(ms=to_time).replace(',', '.'),
-                                       source=self.novoice_mp4, pts=pts, out=clipmp4)
-                        if source_mp4_total_length - queue_copy[idx]['end_time'] < 500:
-                            ss_time = ms_to_time_string(ms=source_mp4_total_length - 500).replace(',', '.')
-                        else:
-                            ss_time = queue_copy[idx]['endraw'].replace(',', '.')
-                        runffmpeg([
-                            "-y",
-                            "-ss",
-                            ss_time,
-                            "-i",
-                            f'{self.novoice_mp4}',
-                            "-c",
-                            "h264_nvenc" if config.params["cuda"] else "copy",
-                            f'{endmp4}'
-                        ])
-                    elif (idx == last_index) and queue_copy[idx]['end_time'] >= source_mp4_total_length and \
-                            queue_copy[idx]['start_time'] < source_mp4_total_length:
-                        # 是 最后一个，并且后边没有了,只有 startmp4 和 clip
-                        # set_process(f"当前是最后一个，并且到达结尾，只需要 startmp4和 clipmp4 2个片段")
-                        # start 需要从 tmp获取
-                        runffmpeg([
-                            "-y",
-                            "-ss",
-                            "0",
-                            "-t",
-                            it["startraw"].replace(',', '.'),
-                            "-i",
-                            f'{novoice_mp4_tmp}',
-                            "-c",
-                            "h264_nvenc" if config.params["cuda"] else "copy",
-                            f'{startmp4}'
-                        ])
 
-                        if source_mp4_total_length - queue_copy[idx]['start_time'] < 500:
-                            ss_time = ms_to_time_string(ms=source_mp4_total_length - 500).replace(',', '.')
+                    # 当前是第一个需要慢速的
+                    if cut_clip == 0:
+                        logger.info(f'cut_clip=0, {last_endtime=},{pts=}')
+                        # 如果也是视频从0开始的第一个
+                        if last_endtime==0:
+                            # 第一个
+                            pts = round(mp3len / queue_copy[idx]['end_time'], 2)
+
+                            cut_from_video(ss="0",
+                                           to=queue_copy[idx]['endraw'],
+                                           source=self.novoice_mp4, pts=pts, out=novoice_mp4_tmp)
+                            logger.info(f'进入 last_endtime=0')
                         else:
-                            ss_time = queue_copy[idx]['startraw'].replace(',', '.')
-                        cut_from_video(ss=ss_time, to="", source=self.novoice_mp4, pts=pts,
-                                       out=clipmp4)
-                    elif cut_clip > 0 and queue_copy[idx]['start_time'] < source_mp4_total_length:
-                        # 处于中间的其他情况，有前后中 3个
-                        # start 需要从 tmp 获取
-                        # set_process(f"当前是第{idx + 1}个，需要 startmp4和 clipmp4和endmp4 3个片段")
-                        runffmpeg([
-                            "-y",
-                            "-ss",
-                            "0",
-                            "-to",
-                            "00:00:00.500" if wavlen < 500 else it["startraw"].replace(',', '.'),
-                            "-i",
-                            f'{novoice_mp4_tmp}',
-                            "-c",
-                            "h264_nvenc" if config.params["cuda"] else "copy",
-                            f'{startmp4}'
-                        ])
-                        to_time = source_mp4_total_length if queue_copy[idx]['end_time'] > source_mp4_total_length else \
-                        queue_copy[idx]['end_time']
-                        if to_time - queue_copy[idx]['start_time'] < 500:
-                            ss_time = ms_to_time_string(ms=to_time - 500).replace(',', '.')
-                        else:
-                            ss_time = queue_copy[idx]['startraw']
-                        cut_from_video(ss=ss_time,
-                                       to=ms_to_time_string(ms=to_time).replace(',', '.'), source=self.novoice_mp4,
-                                       pts=pts, out=clipmp4)
-                        # 从原始获取结束
-                        if queue_copy[idx]['end_time'] < source_mp4_total_length:
-                            if source_mp4_total_length - queue_copy[idx]['end_time'] < 500:
-                                ss_time = ms_to_time_string(ms=source_mp4_total_length - 500).replace(',', '.')
+                            logger.info(f'进入 {last_endtime=}>0')
+                            #如果当前开始大于上次结束，中间有片段
+                            if queue_copy[idx]['start_time']>last_endtime:
+                                logger.info(f'进入 {last_endtime=}>0 and 中间有片段')
+                                cut_from_video(ss=ms_to_time_string(ms=last_endtime),
+                                           to=queue_copy[idx]['startraw'],
+                                           source=self.novoice_mp4, out=tmppert)
+                                cut_from_video(ss=queue_copy[idx]['startraw'],to=queue_copy[idx]['endraw'],
+                                               source=self.novoice_mp4, pts=pts, out=tmppert2)
+
+                                runffmpeg(
+                                    ['-y', '-i', novoice_mp4_tmp, '-i', tmppert, '-i', tmppert2, '-filter_complex',
+                                     '[0:v][1:v][2:v]concat=n=3:v=1:a=0[outv]', '-map', '[outv]', '-c:v', "libx264",
+                                     '-crf',
+                                     '0', '-an', tmppert3])
+                                os.unlink(novoice_mp4_tmp)
+                                os.rename(tmppert3,novoice_mp4_tmp)
                             else:
-                                ss_time = queue_copy[idx]['endraw'].replace(',', '.')
-                            runffmpeg([
-                                "-y",
-                                "-ss",
-                                ss_time,
-                                "-i",
-                                f'{self.novoice_mp4}',
-                                "-c",
-                                "h264_nvenc" if config.params["cuda"] else "copy",
-                                f'{endmp4}'
-                            ])
+                                # 中间无片段
+                                logger.info(f'进入 {last_endtime=}>0 and 中间无片段')
+                                cut_from_video(ss=queue_copy[idx]['startraw'],to=queue_copy[idx]['endraw'],
+                                               source=self.novoice_mp4, pts=pts, out=tmppert)
+                                runffmpeg([
+                                    '-y', '-i', novoice_mp4_tmp, '-i', tmppert, '-filter_complex',
+                                    '[0:v][1:v]concat=n=2:v=1:a=0[outv]', '-map', '[outv]', '-c:v', "libx264", '-crf', '0','-an', tmppert2])
+                                os.unlink(novoice_mp4_tmp)
+                                os.rename(tmppert2,novoice_mp4_tmp)
 
-                    # 合并这个3个
-                    if os.path.exists(startmp4) and os.path.exists(endmp4) and os.path.exists(clipmp4):
-                        runffmpeg(
-                            ['-y', '-i', f'{startmp4}', '-i', f'{clipmp4}', '-i', f'{endmp4}', '-filter_complex',
-                             '[0:v][1:v][2:v]concat=n=3:v=1:a=0[outv]', '-map', '[outv]', '-c:v', "libx264", '-crf',
-                             '0', '-an', f'{novoice_mp4_tmp}'])
-                        # set_process(f"3个合并")
-                    elif os.path.exists(startmp4) and os.path.exists(clipmp4):
-                        runffmpeg([
-                            '-y', '-i', f'{startmp4}', '-i', f'{clipmp4}', '-filter_complex',
-                            '[0:v][1:v]concat=n=2:v=1:a=0[outv]', '-map', '[outv]', '-c:v', "libx264", '-crf', '0',
-                            '-an', f'{novoice_mp4_tmp}'])
-                        # set_process(f"startmp4 和 clipmp4 合并")
-                    elif os.path.exists(endmp4) and os.path.exists(clipmp4):
-                        runffmpeg(['-y', '-i', f'{clipmp4}', '-i', f'{endmp4}', f'-filter_complex',
-                                   f'[0:v][1:v]concat=n=2:v=1:a=0[outv]', '-map', '[outv]', '-c:v', "libx264",
-                                   '-crf', '0', '-an', f'{novoice_mp4_tmp}'])
-                    cut_clip += 1
+                        cut_clip+=1
+                    else:
+                        logger.info(f'进入 {cut_clip=}>0 ,{last_endtime=}')
+                        #不是第一个需慢速片段
+                        cut_clip+=1
+                        # 判断中间是否有
+                        pert=queue_copy[idx]['start_time']-last_endtime
+                        logger.info(f'进入 {cut_clip=}>0 and {pert=}')
+                        if pert>0:
+                            #和上个片段中间有片段
+                            logger.info(f'进入 pert>0 中间有片段')
+                            cut_from_video(ss=queue_copy[idx-1]['endraw'],to=queue_copy[idx]['startraw'],
+                                           source=self.novoice_mp4, out=tmppert)
+                            cut_from_video(ss=queue_copy[idx]['startraw'],
+                                       to=queue_copy[idx]['endraw'],
+                                       source=self.novoice_mp4,pts=pts, out=tmppert2)
+                            runffmpeg(
+                                ['-y', '-i', novoice_mp4_tmp, '-i',tmppert, '-i', tmppert2, '-filter_complex',
+                                 '[0:v][1:v][2:v]concat=n=3:v=1:a=0[outv]', '-map', '[outv]', '-c:v', "libx264", '-crf',
+                                 '0', '-an', tmppert3])
+                            os.unlink(novoice_mp4_tmp)
+                            os.rename(tmppert3,novoice_mp4_tmp)
+                        else:
+                            #和上个片段间中间无片段
+                            logger.info(f'进入 pert==0 中间无片段')
+                            cut_from_video(ss=queue_copy[idx-1]['endraw'],to=queue_copy[idx]['endraw'],
+                                           source=self.novoice_mp4,pts=pts, out=tmppert)
+                            runffmpeg([
+                                '-y', '-i', novoice_mp4_tmp, '-i', tmppert, '-filter_complex',
+                                '[0:v][1:v]concat=n=2:v=1:a=0[outv]', '-map', '[outv]', '-c:v', "libx264", '-crf', '0','-an', f'{tmppert2}'])
+                            os.unlink(novoice_mp4_tmp)
+                            os.rename(tmppert2,novoice_mp4_tmp)
+
+                    last_endtime=queue_copy[idx]['end_time']
                     queue_params[idx] = it
                 else:
-                    # set_process(f"无需降速 {diff=}")
-                    total_length += wavlen
-                    it['start_time'] += offset
+                    logger.info(f'进入 不需要降速')
+                    #不需要慢速
                     it['end_time'] = it['start_time'] + wavlen
                     it['startraw'] = ms_to_time_string(ms=it['start_time'])
                     it['endraw'] = ms_to_time_string(ms=it['end_time'])
                     queue_params[idx] = it
+                    if last_endtime==0:
+                        logger.info(f'进入 不需要降速 and last_endtime=0')
+                        #是第一个视频片段
+                        cut_from_video(ss="0",
+                                           to=queue_copy[idx]['endraw'],
+                                           source=self.novoice_mp4, out=novoice_mp4_tmp)
+                    else:
+                        #不是第一个
+                        logger.info(f'进入 不需要降速 and {last_endtime=}>0')
+                        cut_from_video(ss=ms_to_time_string(ms=last_endtime),
+                                           to=queue_copy[idx]['endraw'],
+                                           source=self.novoice_mp4, out=tmppert)
+                        runffmpeg([
+                            '-y', '-i', novoice_mp4_tmp, '-i', tmppert, '-filter_complex',
+                            '[0:v][1:v]concat=n=2:v=1:a=0[outv]', '-map', '[outv]', '-c:v', "libx264", '-crf', '0',
+                            '-an', f'{tmppert2}'])
+                        os.unlink(novoice_mp4_tmp)
+                        os.rename(tmppert2, novoice_mp4_tmp)
+                    last_endtime=queue_copy[idx]['end_time']
+
                 start_times.append(it['start_time'])
                 segments.append(audio_data)
-                set_process(f"[{line_num}] end")
-                srtmeta.append(srtmeta_item)
 
+            if last_endtime < queue_copy[-1]['end_time']:
+                logger.info(f'处理循环完毕，但未到结尾 last_endtime < end_time')
+                cut_from_video(ss=queue_copy[-1]['endraw'], to="", source=self.novoice_mp4,
+                               out=tmppert)
+                runffmpeg([
+                    '-y', '-i', novoice_mp4_tmp, '-i', tmppert, '-filter_complex',
+                    '[0:v][1:v]concat=n=2:v=1:a=0[outv]', '-map', '[outv]', '-c:v', "libx264", '-crf', '0',
+                    '-an', f'{tmppert2}'])
+                os.unlink(novoice_mp4_tmp)
+                os.rename(tmppert2, novoice_mp4_tmp)
             set_process(f"Origin:{source_mp4_total_length=} + offset:{offset} = {source_mp4_total_length + offset}")
 
-            if os.path.exists(novoice_mp4_tmp):
-                # os.unlink(self.novoice_mp4)
+            if os.path.exists(novoice_mp4_tmp) and os.path.getsize(novoice_mp4_tmp)>0:
                 shutil.copy2(novoice_mp4_tmp, self.novoice_mp4)
                 # 总长度，单位ms
-                total_length = int(get_video_duration(self.novoice_mp4))
-            if not total_length:
+                try:
+                    total_length = int(get_video_duration(self.novoice_mp4))
+                except:
+                    total_length=None
+            if not total_length or total_length<1:
                 total_length = source_mp4_total_length + offset
-            set_process(f"New videro:{total_length=}")
-            if total_length < source_mp4_total_length - 500:
+            set_process(f"New video:{total_length=}")
+            if total_length < source_mp4_total_length + offset :
                 try:
                     # 对视频末尾定格延长
-                    if not self.novoicemp4_add_time(source_mp4_total_length - total_length):
+                    if not self.novoicemp4_add_time(source_mp4_total_length + offset - total_length):
                         set_process(transobj["moweiyanchangshibai"])
                     else:
-                        set_process(f'{source_mp4_total_length - total_length}ms')
+                        set_process(f'{source_mp4_total_length + offset - total_length}ms')
                 except Exception as e:
                     set_process(f'{transobj["moweiyanchangshibai"]}:{str(e)}')
             # 重新修改字幕
@@ -952,20 +876,15 @@ class TransCreate():
                 with open(self.targetdir_target_sub, 'w',
                           encoding="utf-8") as f:
                     f.write(srt.strip())
-                # 保存srt元信息json
-                # with open(f"{self.target_dir}/srt.json", 'w', encoding="utf-8") as f:
-                #     f.write(
-                #         "dubbing_time=配音时长，source_time=原时长,speed_down=视频降速为原来的倍数\n-1表示无效，0代表未变化，无该字段表示跳过\n" + json.dumps(
-                #             srtmeta))
             except Exception as e:
-                set_process("[error]video speed down error " + str(e), 'error')
+                set_process("[error]update srt file " + str(e), 'error')
                 return False
         except Exception as e:
             set_process("[error]video speed down error" + str(e), 'error')
             return False
         try:
             # 视频降速，肯定存在视频，不需要额外处理
-            self.merge_audio_segments(segments, start_times, total_length)
+            self.merge_audio_segments(segments, start_times, total_length if total_length >=source_mp4_total_length + offset else source_mp4_total_length + offset)
         except Exception as e:
             set_process(f"[error]merge audio:seglen={len(segments)},starttimelen={len(start_times)} " + str(e), 'error')
             return False
@@ -998,6 +917,8 @@ class TransCreate():
                 config.current_status = 'stop'
                 set_process(f'[error]语音合成出错了:{str(e)}', 'error')
                 return False
+        if config.current_status != 'ing':
+            return False
         segments = []
         start_times = []
         # 如果设置了视频自动降速 并且有原音频，需要视频自动降速
@@ -1142,12 +1063,13 @@ class TransCreate():
             shutil.copy2(self.targetdir_target_sub,config.rootdir+"/tmp.srt")
             hard_srt="tmp.srt"
         # 有字幕有配音
+        rs=False
         try:
             if config.params['voice_role'] != 'No' and config.params['subtitle_type'] > 0:
                 if config.params['subtitle_type'] == 1:
                     set_process(f"dubbing & embed srt")
                     # 需要配音+硬字幕
-                    runffmpeg([
+                    rs=runffmpeg([
                         "-y",
                         "-i",
                         os.path.normpath(self.novoice_mp4),
@@ -1167,7 +1089,7 @@ class TransCreate():
                 else:
                     set_process(f"dubbing & srt")
                     # 配音+软字幕
-                    runffmpeg([
+                    rs=runffmpeg([
                         "-y",
                         "-i",
                         os.path.normpath(self.novoice_mp4),
@@ -1194,7 +1116,7 @@ class TransCreate():
             elif config.params['voice_role'] != 'No':
                 # 配音无字幕
                 set_process(f"dubbing")
-                runffmpeg([
+                rs=runffmpeg([
                     "-y",
                     "-i",
                     os.path.normpath(self.novoice_mp4),
@@ -1213,7 +1135,7 @@ class TransCreate():
             elif config.params['subtitle_type'] == 1:
                 # 硬字幕无配音 将原始mp4复制到当前文件夹下
                 set_process(f"embed srt & no dubbing")
-                runffmpeg([
+                rs=runffmpeg([
                     "-y",
                     "-i",
                     os.path.normpath(self.novoice_mp4),
@@ -1233,7 +1155,7 @@ class TransCreate():
             elif config.params['subtitle_type'] == 2:
                 # 软字幕无配音
                 set_process(f"srt & no dubbing")
-                runffmpeg([
+                rs=runffmpeg([
                     "-y",
                     "-i",
                     os.path.normpath(self.novoice_mp4),
@@ -1265,4 +1187,4 @@ class TransCreate():
                 os.unlink(config.rootdir+"/tmp.srt")
         except:
             pass
-        return True
+        return rs
