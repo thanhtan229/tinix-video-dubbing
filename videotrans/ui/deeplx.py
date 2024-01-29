@@ -64,7 +64,6 @@ class Ui_deeplxform(object):
         QtCore.QMetaObject.connectSlotsByName(deeplxform)
 
     def retranslateUi(self, deeplxform):
-        _translate = QtCore.QCoreApplication.translate
-        deeplxform.setWindowTitle(_translate("deeplxform", "DeepLX"))
-        self.label.setText(_translate("deeplxform", "DeepLX_address"))
-        self.set_deeplx.setText(_translate("deeplxform", "OK"))
+        deeplxform.setWindowTitle("DeepLX")
+        self.label.setText("DeepLX_address")
+        self.set_deeplx.setText("OK")

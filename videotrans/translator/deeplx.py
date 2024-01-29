@@ -40,6 +40,7 @@ def trans(text_list, target_language="en", *, set_p=True):
             }
 
             url=config.params['deeplx_address'].replace('/translate','')+'/translate'
+            url=url.replace('//translate','/translate')
             if not url.startswith('http'):
                 url=f"http://{url}"
             try:
