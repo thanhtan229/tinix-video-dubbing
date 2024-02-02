@@ -9,7 +9,8 @@
 
 
 from PySide6 import QtCore, QtGui, QtWidgets
-
+from PySide6.QtWidgets import QLabel
+from videotrans.configure import config
 
 class Ui_ottform(object):
     def setupUi(self, ottform):
@@ -57,6 +58,10 @@ class Ui_ottform(object):
         self.set_ott = QtWidgets.QPushButton(ottform)
         self.set_ott.setMinimumSize(QtCore.QSize(0, 35))
         self.set_ott.setObjectName("set_ott")
+        
+        label=QLabel(config.transobj['The ott project at'])
+        self.verticalLayout_2.addWidget(label)
+        
         self.verticalLayout_2.addWidget(self.set_ott)
         self.gridLayout.addLayout(self.verticalLayout_2, 0, 0, 1, 1)
 
