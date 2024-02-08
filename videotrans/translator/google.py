@@ -32,7 +32,7 @@ def trans(text_list, target_language="en", *, set_p=True):
 
     # 切割为每次翻译多少行，值在 set.ini中设定，默认10
     split_size = int(config.settings['trans_thread'])
-    print(f'{split_size=}')
+
     split_source_text = [source_text[i:i + split_size] for i in range(0, len(source_text), split_size)]
 
     for it in split_source_text:
@@ -46,9 +46,8 @@ def trans(text_list, target_language="en", *, set_p=True):
             }
             response = requests.get(url, proxies=proxies, headers=headers, timeout=300)
             if response.status_code != 200:
-                config.logger.info(f'Google 返回响应:{response.text}\nurl={url}')
-                time.sleep(10)
-                return trans(text_list, target_language, set_p=set_p)
+                config.logger.error(f'Google 返回响应:{response.status_code=},{response.text=}\nurl={url}')
+                raise Exception(f'Google error_code={response.status_code}')
 
             re_result = re.findall(
                 r'(?s)class="(?:t0|result-container)">(.*?)<', response.text)
@@ -65,7 +64,6 @@ def trans(text_list, target_language="en", *, set_p=True):
                 else:
                     tools.set_process("\n\n".join(result), func_name="set_fanyi")
                 result_length=len(result)
-                print(f'{result_length=}')
                 config.logger.info(f'{result_length=},{source_length=}')
                 while result_length<source_length:
                     result.append("")
@@ -73,15 +71,9 @@ def trans(text_list, target_language="en", *, set_p=True):
                 result=result[:source_length]
                 target_text.extend(result)
             else:
-                raise Exception(f'no result:{re_result}')
+                raise Exception(f'Google no result:{re_result}')
         except Exception as e:
             error = str(e)
-            if error.find("HTTPSConnection")>-1:
-                if set_p:
-                    tools.set_process(f'Google HTTPSConnectionPool error,after 5s retry')
-                config.logger.error(f'Google HTTPSConnectionPool error,after 5s retry:\n{url=}')
-                time.sleep(5)
-                return trans(text_list, target_language, set_p=set_p)
             config.logger.error(f'Google error:{str(error)}')
             raise Exception(f'Google error:{str(error)}')
     if isinstance(text_list, str):
