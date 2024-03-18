@@ -7,14 +7,6 @@ import requests
 from videotrans.configure import config
 from videotrans.util import tools
 
-def get_url():
-    google_url='https://translate.google.com'
-    if os.path.exists(os.path.join(config.rootdir,'google.txt')):
-        with open(os.path.join(config.rootdir,'google.txt'),'r') as f:
-            t=f.read().strip().rstrip('/')
-            if t and re.match(r'https?://',t,re.I):
-                google_url=t
-    return google_url
 
 def trans(text_list, target_language="en", *, set_p=True,inst=None,stop=0,source_code=None):
     """
@@ -38,7 +30,7 @@ def trans(text_list, target_language="en", *, set_p=True,inst=None,stop=0,source
     index = 0  # 当前循环需要开始的 i 数字,小于index的则跳过
     iter_num = 0  # 当前循环次数，如果 大于 config.settings.retries 出错
     err = ""
-    google_url=get_url()
+    google_url=tools.get_google_url()
     while 1:
         if config.current_status!='ing' and config.box_trans!='ing':
             break
@@ -46,7 +38,7 @@ def trans(text_list, target_language="en", *, set_p=True,inst=None,stop=0,source
             raise Exception(
                 f'{iter_num}{"次重试后依然出错" if config.defaulelang == "zh" else " retries after error persists "}:{err}')
         iter_num += 1
-        print(f'第{iter_num}次')
+
         if iter_num > 1:
             if set_p:
                 tools.set_process(
