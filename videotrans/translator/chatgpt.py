@@ -57,10 +57,11 @@ def create_openai_client():
         raise Exception(f'API={api_url},{str(e)}')
     return client,api_url
 
-def get_content(d,*,model=None,prompt=None):
+def get_content(d,*,model=None,prompt=None,assiant=None):
     message = [
-        {'role': 'system', 'content': "You are a professional, authentic translation engine, only returns translations."},
-        {'role': 'user', 'content':  prompt.replace('[TEXT]',"\n".join(d))},
+        {'role': 'system', 'content': prompt},
+        {'role': 'assistant', 'content': assiant},
+        {'role': 'user', 'content':  "\n".join(d)},
     ]
     config.logger.info(f"\n[chatGPT]发送请求数据:{message=}")
     try:
@@ -75,7 +76,8 @@ def get_content(d,*,model=None,prompt=None):
     except Exception as e:
         config.logger.error(f'[chatGPT]请求失败:{str(e)}')
         raise Exception(e)
-
+    if isinstance(response,str):
+        raise Exception(response)
     if response.choices:
         result = response.choices[0].message.content.strip()
     elif response.data and response.data['choices']:
@@ -112,6 +114,7 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
     with open(config.rootdir+"/videotrans/chatgpt.txt",'r',encoding="utf-8") as f:
         prompt=f.read()
     prompt=prompt.replace('{lang}', target_language)
+    assiant=f"Sure, please provide the text you need translated into {target_language}"
 
 
     end_point="。" if config.defaulelang=='zh' else '. '
@@ -152,7 +155,7 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
                 time.sleep(stop)
             
             try:
-                result,response=get_content(it,model=client,prompt=prompt)
+                result,response=get_content(it,model=client,prompt=prompt,assiant=assiant)
 
                 if inst and inst.precent < 75:
                     inst.precent += 0.01
@@ -162,14 +165,18 @@ def trans(text_list, target_language="English", *, set_p=True,inst=None,stop=0,s
                         tools.set_process_box(text=result + "\n",func_name="fanyi",type="set")
                     continue
                
-                sep_res = result.strip().split("\n")
+                sep_res = tools.cleartext(result).split("\n")
                 raw_len = len(it)
                 sep_len = len(sep_res)
-                if sep_len != raw_len:
-                    sep_res = []
-                    for it_n in it:
-                        t, response = get_content([it_n.strip()],model=client,prompt=prompt)
-                        sep_res.append(t)
+                # 如果返回数量和原始语言数量不一致，则重新切割
+                if sep_len < raw_len:
+                    print(f'翻译前后数量不一致，需要重新切割')
+                    sep_res = tools.format_result(it, sep_res, target_lang=target_language)
+                # if sep_len != raw_len:
+                #     sep_res = []
+                #     for it_n in it:
+                #         t, response = get_content([it_n.strip()],model=client,prompt=prompt)
+                #         sep_res.append(t)
 
                 for x,result_item in enumerate(sep_res):
                     if x < len(it):
