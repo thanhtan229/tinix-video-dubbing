@@ -4,11 +4,12 @@ from typing import Union, List, Dict
 import requests
 
 from videotrans.configure import config
+from videotrans.util import tools
 from videotrans.recognition._base import BaseRecogn
 
 """
             请求发送：以二进制形式发送键名为 audio 的wav格式音频数据，采样率为16k、通道为1
-            requests.post(api_url, files={"audio": open(audio_file, 'rb')})
+            requests.post(api_url, files={"audio": open(audio_file, 'rb')},data={"language":2位语言代码})
 
             失败时返回
             res={
@@ -57,13 +58,17 @@ class APIRecogn(BaseRecogn):
         self._signal(
             text=f"识别可能较久，请耐心等待" if config.defaulelang == 'zh' else 'Recognition may take a while, please be patient')
         try:
-            res = requests.post(f"{self.api_url}", files=files, proxies={"http": "", "https": ""}, timeout=3600)
+            res = requests.post(f"{self.api_url}",data={"language":self.detect_language}, files=files, proxies={"http": "", "https": ""}, timeout=3600)
             config.logger.info(f'RECOGN_API:{res=}')
             res = res.json()
             if "code" not in res or res['code'] != 0:
                 raise Exception(f'{res["msg"]}')
             if "data" not in res or len(res['data']) < 1:
                 raise Exception(f'识别出错{res=}')
+            self._signal(
+                text=tools.get_srt_from_list(res['data']),
+                type='replace_subtitle'
+            )
             return res['data']
         except Exception as e:
             raise
