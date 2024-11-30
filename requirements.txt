@@ -50,4 +50,4 @@ datasets==3.0
 simplejson
 sortedcontainers
 alibabacloud_alimt20181012==1.1.0
-samplerate
+samplerate;sys_platform == 'win32'
