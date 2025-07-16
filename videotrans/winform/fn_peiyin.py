@@ -368,14 +368,22 @@ def openwin():
                                         '必须导入srt文件或在文本框中填写文字' if config.defaulelang == 'zh' else 'Must import srt file or fill in text box with text')
         if len(winobj.hecheng_files)>0 and winobj.save_to_srt.isChecked():
             RESULT_DIR=Path(winobj.hecheng_files[0]).parent.as_posix()
+        if not Path(config.TEMP_HOME).is_dir():
+            Path(config.TEMP_HOME).mkdir(exist_ok=True)
         if txt:
             newsrtfile = config.TEMP_HOME + f"/peiyin{time.time()}."
-            if tts_type==tts.EDGE_TTS and not re.match(r'^1\s*[\r\n]+\s*\d{1,2}:\d{1,2}:\d{1,2}(\,\d{1,3})?\s*-->\s*\d{1,2}:\d{1,2}:\d{1,2}(\,\d{1,3})?',txt.strip()):
+            is_srt=re.match(r'^1\s*[\r\n]+\s*\d{1,2}:\d{1,2}:\d{1,2}(\,\d{1,3})?\s*-->\s*\d{1,2}:\d{1,2}:\d{1,2}(\,\d{1,3})?',txt)
+            if tts_type==tts.EDGE_TTS and not is_srt:
                 newsrtfile+='txt'
-                Path(newsrtfile).write_text(txt.strip(),encoding='utf-8')
+                Path(newsrtfile).write_text(txt,encoding='utf-8')
             else:
                 newsrtfile+='srt'
-                tools.save_srt(tools.get_subtitle_from_srt(tools.process_text_to_srt_str(txt), is_file=False), newsrtfile)
+                with open(newsrtfile, "w", encoding="utf-8") as f:
+                    if not is_srt:
+                        txt=re.sub(r"(\s*?\r?\n\s*?){2,}","\n",txt)
+                        txt=re.sub(r"(\s*?\r?\n\s*?)","\n",txt)
+                        txt=f"1\n00:00:00,000 --> 00:00:01,000\n{txt}"
+                    f.write(txt)
             winobj.hecheng_files.append(newsrtfile)
 
         config.box_tts = 'ing'
