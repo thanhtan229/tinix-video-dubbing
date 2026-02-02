@@ -6,19 +6,12 @@ from typing import List, Dict, Optional
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel,
-    QPushButton, QScrollArea, QWidget, QGroupBox, QFrame, QMessageBox,
-    QApplication, QProgressBar, QListView, QStyle, QStyledItemDelegate,
-    QStyleOptionButton, QToolTip, QAbstractItemView
+    QPushButton, QWidget, QProgressBar, QApplication, 
+    QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
+    QMessageBox, QMenu, QInputDialog
 )
-
-from PySide6.QtGui import (
-    QIcon, QPen, QColor, QBrush, QPalette, QPainter,
-    QFontMetrics, QCursor
-)
-from PySide6.QtCore import (
-    Qt, QTimer, QSize, QThread, Signal, QAbstractListModel,
-    QModelIndex, QRect, QEvent
-)
+from PySide6.QtGui import QIcon, QDesktopServices, QColor, QCursor, QFont
+from PySide6.QtCore import Qt, QTimer, QSize, QUrl, QThread, Signal, QRect
 
 from pydub import AudioSegment
 from videotrans.configure.config import tr
@@ -51,536 +44,6 @@ class ReDubb(QThread):
             self.uito.emit(msg)
 
 
-# ===========================================================================
-# 1. 数据模型
-# ===========================================================================
-class DubbingModel(QAbstractListModel):
-    RoleRawData = Qt.UserRole + 1
-    RoleTimeStr = Qt.UserRole + 2
-    RoleTipStr = Qt.UserRole + 3
-    RoleMsgOnly = Qt.UserRole + 4
-
-    def __init__(self, data_list=None, parent=None):
-        super().__init__(parent)
-        self._data = data_list or []
-
-        # 延迟加载：不立即计算所有项，按需计算
-        self._computed = set()
-
-    def flags(self, index):
-        if not index.isValid():
-            return Qt.ItemFlag.NoItemFlags
-        return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEditable
-
-    @staticmethod
-    def ms_to_fmt(ms):
-        """将毫秒转换为 00:00:00,000 格式"""
-        seconds, milliseconds = divmod(ms, 1000)
-        minutes, seconds = divmod(seconds, 60)
-        hours, minutes = divmod(minutes, 60)
-        return f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d},{int(milliseconds):03d}"
-
-    def _update_time_info(self, item):
-        """计算并缓存显示用的字符串"""
-        try:
-            dubbing = float(item.get('dubbing_s', 0.0))
-            duration = (item['end_time'] - item['start_time']) / 1000.0
-            diff = round(dubbing - duration, 3)
-
-            if dubbing <= 0.0:
-                msg = tr('The audio file does not exist')
-                labeltip = msg
-            elif diff > 0:
-                msg = f'{tr("Dubbing files")}{dubbing}s <{tr("Exceeded")}> {diff}s ({tr("Alignment needs accelerated")} {round(dubbing / duration, 2)}x)'
-                labeltip = f'{tr("Dubbing files")} <{tr("Exceeded")}> {tr("Original duration")} {diff}s'
-            elif diff < 0:
-                msg = f'{tr("Dubbing files")}{dubbing}s <{tr("Shortened")}> {abs(diff)}s'
-                labeltip = f'{tr("Dubbing files")} <{tr("Shortened")}> {tr("Original duration")} {abs(diff)}s'
-            else:
-                msg = f'{tr("Dubbing files")}={tr("Original duration")}'
-                labeltip = f'{tr("Dubbing files")}={tr("Original duration")}'
-
-            labeltex = f"[{item['line']}]  {item['startraw']}->{item['endraw']}({duration}s)  {msg}"
-
-            item['__display_text'] = labeltex
-            item['__display_tip'] = labeltip
-            item['__display_msg_only'] = msg
-        except Exception:
-            item['__display_text'] = f"[{item['line']}] Error loading audio info"
-            item['__display_tip'] = "Error"
-            item['__display_msg_only'] = "Error"
-
-    def rowCount(self, parent=QModelIndex()):
-        return len(self._data)
-
-    def data(self, index, role=Qt.DisplayRole):
-        if not index.isValid() or index.row() >= len(self._data):
-            return None
-        item = self._data[index.row()]
-
-        # 延迟计算：首次访问时才计算
-        if index.row() not in self._computed and role in (self.RoleTimeStr, self.RoleTipStr, self.RoleMsgOnly):
-            self._update_time_info(item)
-            self._computed.add(index.row())
-
-        if role == Qt.DisplayRole or role == Qt.EditRole:
-            return item['text']
-        if role == self.RoleRawData:
-            return item
-        if role == self.RoleTimeStr:
-            return item.get('__display_text', '')
-        if role == self.RoleTipStr:
-            return item.get('__display_tip', '')
-        if role == self.RoleMsgOnly:
-            return item.get('__display_msg_only', '')
-        return None
-
-    def setData(self, index, value, role=Qt.EditRole):
-        if index.isValid() and role == Qt.EditRole:
-            self._data[index.row()]['text'] = value
-            self.dataChanged.emit(index, index, [Qt.DisplayRole, Qt.EditRole])
-            return True
-        return False
-
-    def refresh_item(self, row):
-        """外部调用刷新"""
-        if 0 <= row < len(self._data):
-            self._update_time_info(self._data[row])
-            idx = self.index(row)
-            self.dataChanged.emit(idx, idx, [Qt.DisplayRole, self.RoleTimeStr, self.RoleTipStr, self.RoleMsgOnly])
-
-    def get_all_data(self):
-        return self._data
-
-    def adjust_time(self, row, mode, offset_ms):
-        """
-        调整时间
-        :return: (success: bool, message: str)
-        """
-        if not (0 <= row < len(self._data)):
-            return False, "Invalid Index"
-
-        item = self._data[row]
-        prev_item = self._data[row - 1] if row > 0 else None
-        next_item = self._data[row + 1] if row < len(self._data) - 1 else None
-
-        buffer = 10  # 10ms buffer
-
-        if mode == 'start':
-            new_start = item['start_time'] + offset_ms
-
-            limit_min = 0
-            if prev_item:
-                limit_min = prev_item['end_time'] + buffer
-
-            if new_start < limit_min:
-                return False, tr("Cannot overlap with previous subtitle")
-
-            limit_max = item['end_time'] - buffer
-            if new_start > limit_max:
-                return False, tr("Start time cannot exceed End time")
-
-            item['start_time'] = new_start
-            item['start_time_source'] = new_start
-            item['startraw'] = self.ms_to_fmt(new_start)
-
-        elif mode == 'end':
-            new_end = item['end_time'] + offset_ms
-
-            limit_min = item['start_time'] + buffer
-            if new_end < limit_min:
-                 return False, tr("End time cannot be less than Start time")
-
-            limit_max = float('inf')
-            if next_item:
-                limit_max = next_item['start_time'] - buffer
-
-            if new_end > limit_max:
-                return False, tr("Cannot overlap with next subtitle")
-
-            item['end_time'] = new_end
-            item['end_time_source'] = new_end
-            item['endraw'] = self.ms_to_fmt(new_end)
-
-        self.refresh_item(row)
-        return True, ""
-
-
-# ===========================================================================
-# 2. 委托 - 优化绘制性能
-# ===========================================================================
-
-class DubbingDelegate(QStyledItemDelegate):
-    btn_redub_clicked = Signal(int)
-    btn_listen_clicked = Signal(int)
-    btn_adjust_time = Signal(int, str, int)
-
-    # 预定义固定尺寸，避免运行时计算
-    BTN_WIDTH = 90
-    BTN_HEIGHT = 26
-    MINI_BTN_SIZE = 20
-    TEXT_WIDTH = 26  # "0.1" 的固定宽度
-    ROW_HEIGHT = 80
-    INPUT_HEIGHT = 30
-    MARGIN = 5
-    SPACING = 10
-
-    # 预定义颜色，避免重复创建
-    COLOR_YELLOW = QColor("yellow")
-    COLOR_BG_MINI = QColor("#3A4550")
-    COLOR_BG_MINI_PRESSED = QColor("#666666")
-    COLOR_TEXT_MINI = QColor("#aaaaaa")
-    COLOR_TEXT_MINI_PRESSED = QColor("#ffffff")
-    COLOR_BG_BTN = QColor("#455364")
-    COLOR_BG_BTN_PRESSED = QColor("#222222")
-    COLOR_BG_BTN_SELECTED = QColor("#19232D")
-    COLOR_TEXT_BTN = QColor("#DFE1E2")
-    COLOR_TEXT_BTN_PRESSED = QColor("#aaaaaa")
-    COLOR_BORDER_INPUT = QColor("#455364")
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._pressed_data = None
-        # 缓存字体度量，避免重复获取
-        self._fm = None
-        # 缓存固定文本的宽度
-        self._line_width_cache = {}
-        self._time_width_cache = {}
-
-    def _get_font_metrics(self, painter):
-        """获取或缓存字体度量"""
-        if self._fm is None:
-            self._fm = painter.fontMetrics()
-        return self._fm
-
-    def _get_line_width(self, line_num, fm):
-        """缓存行号文本宽度"""
-        if line_num not in self._line_width_cache:
-            self._line_width_cache[line_num] = fm.horizontalAdvance(f"[{line_num}] ")
-        return self._line_width_cache[line_num]
-
-    def _get_time_width(self, startraw, endraw, duration, fm):
-        """缓存时间文本宽度"""
-        key = f"{startraw}{endraw}{duration}"
-        if key not in self._time_width_cache:
-            time_str = f"{startraw} -> {endraw} ({duration:.2f}s)"
-            self._time_width_cache[key] = (fm.horizontalAdvance(time_str), time_str)
-        return self._time_width_cache[key]
-
-    def _get_layout_metrics(self, rect, item, fm):
-        """统一计算各部分坐标，供 paint/editorEvent/helpEvent 使用"""
-        if item is None:
-            return None
-
-        top_row_y = rect.top() + self.MARGIN
-        left_margin = rect.left() + self.MARGIN
-
-        # 1. 行号 - 使用缓存的宽度
-        line_num = item['line']
-        w_line = self._get_line_width(line_num, fm)
-
-        current_x = left_margin + w_line + 5
-
-        # 2. Start 组 - 使用固定尺寸
-        w_btn = self.MINI_BTN_SIZE
-        w_txt = self.TEXT_WIDTH
-        s_minus_rect = QRect(current_x, top_row_y + 3, w_btn, w_btn)
-        s_plus_rect = QRect(current_x + w_btn + w_txt, top_row_y + 3, w_btn, w_btn)
-
-        current_x = s_plus_rect.right() + self.SPACING
-
-        # 3. 时间文本 - 使用缓存的宽度
-        duration = (item['end_time'] - item['start_time']) / 1000.0
-        w_time, time_str = self._get_time_width(item['startraw'], item['endraw'], duration, fm)
-        time_rect = QRect(current_x, top_row_y, w_time, 26)
-
-        current_x += w_time + self.SPACING
-
-        # 4. End 组
-        e_minus_rect = QRect(current_x, top_row_y + 3, w_btn, w_btn)
-        e_plus_rect = QRect(current_x + w_btn + w_txt, top_row_y + 3, w_btn, w_btn)
-
-        current_x = e_plus_rect.right() + 15
-
-        # 5. Msg 区域
-        msg_start_x = current_x
-
-        # 6. 右侧按钮 - 使用固定尺寸
-        btn_y = top_row_y + 2
-        btn_listen_rect = QRect(rect.right() - self.BTN_WIDTH - self.MARGIN, btn_y, self.BTN_WIDTH, self.BTN_HEIGHT)
-        btn_redub_rect = QRect(btn_listen_rect.left() - self.BTN_WIDTH - self.MARGIN, btn_y, self.BTN_WIDTH, self.BTN_HEIGHT)
-
-        # 7. 输入框
-        bottom_row_y = rect.top() + 40
-        input_rect = QRect(left_margin, bottom_row_y, rect.width() - 10, self.INPUT_HEIGHT)
-
-        return {
-            'line_rect': QRect(left_margin, top_row_y, w_line, 26),
-            's_minus': s_minus_rect,
-            's_plus': s_plus_rect,
-            's_text_rect': QRect(s_minus_rect.right(), top_row_y + 3, w_txt, w_btn),
-            'time_rect': time_rect,
-            'time_str': time_str,
-            'e_minus': e_minus_rect,
-            'e_plus': e_plus_rect,
-            'e_text_rect': QRect(e_minus_rect.right(), top_row_y + 3, w_txt, w_btn),
-            'msg_x': msg_start_x,
-            'btn_listen': btn_listen_rect,
-            'btn_redub': btn_redub_rect,
-            'input_rect': input_rect
-        }
-
-    def helpEvent(self, event, view, option, index):
-        if not index.isValid():
-            return False
-
-        if event.type() == QEvent.Type.ToolTip:
-            item = index.data(DubbingModel.RoleRawData)
-            if item is None:
-                return False
-
-            fm = option.widget.fontMetrics()
-            metrics = self._get_layout_metrics(option.rect, item, fm)
-            if not metrics:
-                return False
-
-            pos = event.pos()
-
-            if metrics['s_minus'].united(metrics['s_plus']).contains(pos):
-                QToolTip.showText(event.globalPos(), tr("Click the + or - symbols to move the start time of this subtitle"))
-                return True
-
-            if metrics['e_minus'].united(metrics['e_plus']).contains(pos):
-                QToolTip.showText(event.globalPos(), tr("Click the + or - symbols to move the end time of this subtitle"))
-                return True
-
-            if metrics['input_rect'].contains(pos):
-                QToolTip.showText(event.globalPos(), tr("Double-click the text box to edit the subtitles"))
-                return True
-
-        return super().helpEvent(event, view, option, index)
-
-    def sizeHint(self, option, index):
-        return QSize(option.rect.width(), self.ROW_HEIGHT)
-
-    def paint(self, painter, option, index):
-        if not index.isValid():
-            return
-
-        item = index.data(DubbingModel.RoleRawData)
-        if item is None:
-            return
-
-        msg_str = index.data(DubbingModel.RoleMsgOnly)
-        text = item['text']
-
-        # 获取字体度量并缓存
-        fm = self._get_font_metrics(painter)
-
-        # 获取坐标布局
-        metrics = self._get_layout_metrics(option.rect, item, fm)
-        if not metrics:
-            return
-
-        # 设置渲染提示 - 只在需要时开启
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-
-        # 绘制选中背景
-        if option.state & QStyle.StateFlag.State_Selected:
-            painter.fillRect(option.rect, option.palette.highlight())
-            text_color = option.palette.highlightedText().color()
-        else:
-            text_color = option.palette.text().color()
-
-        # 根据配音状态设置颜色
-        if float(item.get('dubbing_s', 0)) <= 0:
-            text_color = self.COLOR_YELLOW
-
-        painter.setPen(text_color)
-
-        # A. 行号
-        line_str = f"[{item['line']}] "
-        painter.drawText(metrics['line_rect'], Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, line_str)
-
-        # B. Start 调节组
-        is_s_minus_pressed = (self._pressed_data == (index.row(), 's-'))
-        is_s_plus_pressed = (self._pressed_data == (index.row(), 's+'))
-
-        self._draw_mini_button(painter, metrics['s_minus'], "-", is_s_minus_pressed)
-        painter.setPen(text_color)
-        painter.drawText(metrics['s_text_rect'], Qt.AlignmentFlag.AlignCenter, "0.1")
-        self._draw_mini_button(painter, metrics['s_plus'], "+", is_s_plus_pressed)
-
-        # C. 时间文本
-        painter.setPen(text_color)
-        painter.drawText(metrics['time_rect'], Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, metrics['time_str'])
-
-        # D. End 调节组
-        is_e_minus_pressed = (self._pressed_data == (index.row(), 'e-'))
-        is_e_plus_pressed = (self._pressed_data == (index.row(), 'e+'))
-
-        self._draw_mini_button(painter, metrics['e_minus'], "-", is_e_minus_pressed)
-        painter.setPen(text_color)
-        painter.drawText(metrics['e_text_rect'], Qt.AlignmentFlag.AlignCenter, "0.1")
-        self._draw_mini_button(painter, metrics['e_plus'], "+", is_e_plus_pressed)
-
-        # E. Msg 信息
-        right_limit = option.rect.width() - 200
-        msg_width = right_limit - metrics['msg_x']
-        if msg_width > 0:
-            msg_rect = QRect(metrics['msg_x'], metrics['time_rect'].top(), msg_width, 26)
-            elided_msg = fm.elidedText(msg_str, Qt.TextElideMode.ElideRight, msg_width)
-            painter.setPen(text_color)
-            painter.drawText(msg_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided_msg)
-
-        # 右侧大按钮
-        is_listen_pressed = (self._pressed_data == (index.row(), 'listen'))
-        is_redub_pressed = (self._pressed_data == (index.row(), 'redub'))
-
-        is_selected = option.state & QStyle.StateFlag.State_Selected
-        self._draw_button(painter, metrics['btn_listen'], tr("Trial dubbing"), is_listen_pressed, is_selected)
-        self._draw_button(painter, metrics['btn_redub'], tr("Re-dubbed"), is_redub_pressed, is_selected)
-
-        # 底部输入框
-        input_rect = metrics['input_rect']
-        input_bg = option.palette.base().color()
-
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setBrush(QBrush(input_bg))
-        painter.setPen(QPen(self.COLOR_BORDER_INPUT))
-        painter.drawRoundedRect(input_rect, 4, 4)
-
-        painter.setPen(option.palette.windowText().color())
-        text_draw_rect = input_rect.adjusted(4, 0, -4, 0)
-        elided_text = fm.elidedText(text, Qt.TextElideMode.ElideRight, text_draw_rect.width())
-        painter.drawText(text_draw_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided_text)
-
-    def _draw_mini_button(self, painter, rect, text, pressed=False):
-        """绘制小按钮 - 简化版本"""
-        if pressed:
-            painter.fillRect(rect, self.COLOR_BG_MINI_PRESSED)
-            painter.setPen(self.COLOR_TEXT_MINI_PRESSED)
-            offset = 1
-        else:
-            painter.fillRect(rect, self.COLOR_BG_MINI)
-            painter.setPen(self.COLOR_TEXT_MINI)
-            offset = 0
-
-        if offset:
-            rect = rect.adjusted(offset, offset, 0, 0)
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
-
-    def _draw_button(self, painter, rect, text, pressed=False, selected=False):
-        """绘制大按钮 - 简化版本"""
-        if pressed:
-            bg_color = self.COLOR_BG_BTN_PRESSED
-            text_color = self.COLOR_TEXT_BTN_PRESSED
-        elif selected:
-            bg_color = self.COLOR_BG_BTN_SELECTED
-            text_color = QColor("#ffffff")
-        else:
-            bg_color = self.COLOR_BG_BTN
-            text_color = self.COLOR_TEXT_BTN
-
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(rect, bg_color)
-        painter.setPen(text_color)
-
-        if pressed:
-            rect = rect.adjusted(1, 1, 0, 0)
-        painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, text)
-
-    def editorEvent(self, event, model, option, index):
-        if not index.isValid():
-            return False
-
-        item = index.data(DubbingModel.RoleRawData)
-        if item is None:
-            return False
-
-        fm = option.widget.fontMetrics()
-        metrics = self._get_layout_metrics(option.rect, item, fm)
-        if not metrics:
-            return False
-
-        row = index.row()
-        view = option.widget
-
-        if event.type() == QEvent.Type.MouseButtonPress:
-            if event.button() == Qt.MouseButton.LeftButton:
-                pos = event.pos()
-                targets = [
-                    (metrics['btn_listen'], 'listen'),
-                    (metrics['btn_redub'], 'redub'),
-                    (metrics['s_minus'], 's-'),
-                    (metrics['s_plus'], 's+'),
-                    (metrics['e_minus'], 'e-'),
-                    (metrics['e_plus'], 'e+')
-                ]
-                for rect_area, btn_id in targets:
-                    if rect_area.contains(pos):
-                        view.setFocus()
-                        self._pressed_data = (row, btn_id)
-
-                        # 发射信号 - 使用 QueuedConnection 确保异步处理
-                        if btn_id == 'listen':
-                            self.btn_listen_clicked.emit(row)
-                        elif btn_id == 'redub':
-                            self.btn_redub_clicked.emit(row)
-                        elif btn_id == 's-':
-                            self.btn_adjust_time.emit(row, 'start', -100)
-                        elif btn_id == 's+':
-                            self.btn_adjust_time.emit(row, 'start', 100)
-                        elif btn_id == 'e-':
-                            self.btn_adjust_time.emit(row, 'end', -100)
-                        elif btn_id == 'e+':
-                            self.btn_adjust_time.emit(row, 'end', 100)
-
-                        # 修复：使用 viewport().update(rect) 而不是 update(rect)
-                        view.viewport().update(option.rect)
-                        return True
-
-        elif event.type() == QEvent.Type.MouseButtonRelease:
-            if event.button() == Qt.MouseButton.LeftButton and self._pressed_data:
-                old_pressed = self._pressed_data
-                self._pressed_data = None
-                # 修复：使用 viewport().update(rect) 进行局部更新
-                view.viewport().update(option.rect)
-                return True
-
-        elif event.type() == QEvent.Type.MouseButtonDblClick:
-            pos = event.pos()
-            if metrics['input_rect'].contains(pos):
-                if hasattr(view, 'edit'):
-                    view.edit(index)
-                return True
-            # 双击按钮区域不触发编辑
-            check_rects = [metrics['btn_listen'], metrics['btn_redub'],
-                          metrics['s_minus'], metrics['s_plus'],
-                          metrics['e_minus'], metrics['e_plus']]
-            if any(r.contains(pos) for r in check_rects):
-                return True
-
-        return super().editorEvent(event, model, option, index)
-
-    def createEditor(self, parent, option, index):
-        return QLineEdit(parent)
-
-    def setEditorData(self, editor, index):
-        text = index.model().data(index, Qt.ItemDataRole.EditRole)
-        editor.setText(text)
-
-    def setModelData(self, editor, model, index):
-        model.setData(index, editor.text(), Qt.ItemDataRole.EditRole)
-
-    def updateEditorGeometry(self, editor, option, index):
-        rect = option.rect
-        editor.setGeometry(rect.left() + 5, rect.top() + 40, rect.width() - 10, 30)
-
-
-# ===========================================================================
-# 3. 主窗口
-# ===========================================================================
 class EditDubbingResultDialog(QDialog):
     def __init__(
             self,
@@ -596,7 +59,7 @@ class EditDubbingResultDialog(QDialog):
 
         self.setWindowTitle(tr("Proofreading and dubbing - Re-dubbing"))
         self.setWindowIcon(QIcon(f"{config.ROOT_DIR}/videotrans/styles/icon.ico"))
-        self.setMinimumWidth(1000)
+        self.setMinimumWidth(900)
         self.setMinimumHeight(600)
         self.setWindowFlags(Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowMaximizeButtonHint)
 
@@ -604,9 +67,10 @@ class EditDubbingResultDialog(QDialog):
 
         main_layout = QVBoxLayout(self)
 
+        # Top Bar
         hstop = QHBoxLayout()
         self.prompt_label = QLabel(tr("You can check the voiceover here, or modify the text and re-encode the voiceover. Please stop the countdown before proceeding"))
-        self.prompt_label.setStyleSheet('font-size:14px;text-align:center;color:#aaaaaa')
+        self.prompt_label.setStyleSheet('font-size:14px;color:#aaaaaa')
         self.prompt_label.setWordWrap(True)
         hstop.addWidget(self.prompt_label)
 
@@ -616,81 +80,477 @@ class EditDubbingResultDialog(QDialog):
         self.stop_button.setMinimumSize(QSize(300, 35))
         self.stop_button.clicked.connect(self.stop_countdown)
         hstop.addWidget(self.stop_button)
-
         main_layout.addLayout(hstop)
 
-        prompt_label2 = QLabel(tr("To remove a voiceover, simply clear the text. A voiceover duration of 0 seconds indicates a failed voiceover"))
+        # 操作提示
+        prompt_label2 = QLabel(tr("Right-click: Menu | << >> : Adjust time")+"\n"+tr('Shortened and Exceeded mean'))
         prompt_label2.setAlignment(Qt.AlignCenter)
         prompt_label2.setWordWrap(True)
+        prompt_label2.setStyleSheet("font-size: 14px;")
         main_layout.addWidget(prompt_label2)
 
+        # Loading
         self.loading_widget = QWidget()
         load_layout = QVBoxLayout(self.loading_widget)
-        self.loading_label = QLabel(tr('The subtitle editing interface is rendering'), self)
+        self.loading_label = QLabel(tr('Loading...'), self)
         self.loading_label.setAlignment(Qt.AlignCenter)
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setValue(0)
-
         load_layout.addWidget(self.loading_label)
-        load_layout.addWidget(self.progress_bar)
-
         main_layout.addWidget(self.loading_widget)
 
-        self.list_view = QListView()
-        self.list_view.setUniformItemSizes(True)
-        self.list_view.setResizeMode(QListView.ResizeMode.Adjust)
-        self.list_view.setVisible(False)
-        self.list_view.setTabKeyNavigation(True)
-        self.list_view.setSpacing(2)
-        # 启用批量绘制优化
-        self.list_view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self.list_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        main_layout.addWidget(self.list_view)
+        # Table Widget (初始隐藏)
+        self.table = QTableWidget()
+        self.table.setVisible(False)
+        main_layout.addWidget(self.table)
 
+        # Bottom Bar
         self.save_button = QPushButton(tr("nextstep"))
         self.save_button.setCursor(Qt.PointingHandCursor)
         self.save_button.setMinimumSize(QSize(400, 35))
         self.save_button.clicked.connect(self.save_and_close)
+        
         cancel_button = QPushButton(tr("Terminate this mission"))
         cancel_button.setCursor(Qt.PointingHandCursor)
         cancel_button.setMaximumSize(QSize(200, 30))
-        cancel_button.setStyleSheet("""background-color:transparent""")
+        cancel_button.setStyleSheet("background-color:transparent")
         cancel_button.clicked.connect(self.cancel_and_close)
+        
         bottom_layout = QHBoxLayout()
         bottom_layout.addStretch()
         bottom_layout.addWidget(self.save_button)
         bottom_layout.addWidget(cancel_button)
         bottom_layout.addStretch()
-
         main_layout.addLayout(bottom_layout)
-        self.setLayout(main_layout)
-        QTimer.singleShot(100, self.lazy_load_interface)
 
-    def lazy_load_interface(self):
-        self.create_subtitle_assignment_area()
-        QApplication.processEvents()
-        def _finish():
-            self.list_view.setVisible(True)
-            self.loading_widget.deleteLater()
+        # 延迟加载表格
+        QTimer.singleShot(10, self.load_table)
+
+    def load_table(self):
+        """极致性能加载表格"""
+        if not self.isVisible():
+            return
+
+        try:
+            # 1. 创建 QTableWidget - 只有5列
+            # 列：Line | Start | End | Status | Text
+            self.table.setColumnCount(5)
+            self.table.setHorizontalHeaderLabels([
+                tr("Line"), tr("Start Time"), tr("End Time"), tr("Dubbed Status"), tr("Subtitle Text")
+            ])
+            
+            # 2.
+            self.table.setShowGrid(True)
+            self.table.setAlternatingRowColors(False)
+            self.table.setWordWrap(False)
+            self.table.setMouseTracking(False)
+            self.table.setFocusPolicy(Qt.StrongFocus)
+            self.table.setSelectionMode(QAbstractItemView.SingleSelection)
+            self.table.setSelectionBehavior(QAbstractItemView.SelectItems)
+            
+            # 垂直表头
+            v_header = self.table.verticalHeader()
+            v_header.setVisible(False)
+            v_header.setSectionResizeMode(QHeaderView.Fixed)
+            v_header.setDefaultSectionSize(24)  # 更小行高
+            
+            # 水平表头
+            h_header = self.table.horizontalHeader()
+            h_header.setSectionResizeMode(0, QHeaderView.Fixed)  # Line
+            h_header.setSectionResizeMode(1, QHeaderView.Fixed)  # Start
+            h_header.setSectionResizeMode(2, QHeaderView.Fixed)  # End
+            h_header.setSectionResizeMode(3, QHeaderView.Fixed)  # Status
+            h_header.setSectionResizeMode(4, QHeaderView.Stretch)  # Text
+            
+            # 设置列宽
+            self.table.setColumnWidth(0, 50)   # Line
+            self.table.setColumnWidth(1, 130)   # Start
+            self.table.setColumnWidth(2, 130)   # End
+            self.table.setColumnWidth(3, 120)  # Status
+            
+
+            self.table.setStyleSheet("""
+                QTableWidget {
+                    color: #cccccc;
+                    border: 1px solid #333;
+                    gridline-color: #333;
+                }
+                QTableWidget::item {
+                    padding: 1px 3px;
+                }
+                QTableWidget::item:selected {
+                    background-color: #0066cc;
+                }
+                QHeaderView::section {
+                    background-color: #252525;
+                    color: #aaa;
+                    border: none;
+                    border-right: 1px solid #3e3e3e;
+                    padding: 2px;
+                }
+            """)
+            
+            # 3. 预计算数据
+            self._precompute_data()
+            
+            # 4. 设置行数
+            total_rows = len(self.queue_tts)
+            self.table.setRowCount(total_rows)
+            
+            # 5. 分批填充数据
+            self._batch_fill(0, min(total_rows, 200))
+            
+            # 6. 显示表格
+            self.loading_widget.setVisible(False)
+            self.table.setVisible(True)
+            
+            # 7. 延迟加载剩余数据
+            if total_rows > 200:
+                QTimer.singleShot(0, lambda: self._load_remaining(200))
+            
+            # 8. 连接信号
+            self.table.cellDoubleClicked.connect(self._on_cell_double_clicked)
+            self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+            self.table.customContextMenuRequested.connect(self._show_context_menu)
+            
+            # 9. 启动倒计时
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.update_countdown)
             self.timer.start(1000)
-            self._active()
-        QTimer.singleShot(50, _finish)
+            if self.parent:
+                self.parent.activateWindow()
+                
+        except Exception as e:
+            print(f"Load table failed: {e}")
+            import traceback
+            traceback.print_exc()
+            self.loading_label.setText(f"Error: {e}")
 
-    def _active(self):
-        self.parent.activateWindow()
+    def _precompute_data(self):
+        """预计算所有显示数据"""
+        for item in self.queue_tts:
+            duration = (item['end_time'] - item['start_time']) / 1000.0
+            dubbing = float(item.get('dubbing_s', 0.0))
+            diff = round(dubbing - duration, 3)
+            
+            if dubbing <= 0.0:
+                msg = tr('No audio')
+            elif diff > 0:
+                msg = f'[{dubbing}s]{tr("Exceeded")}{diff}s'
+            elif diff < 0:
+                msg = f'[{dubbing}s]{tr("Shortened")}{abs(diff)}s'
+            else:
+                msg = '=='
+            
+            item['_duration'] = duration
+            item['_msg'] = msg
+
+    def _batch_fill(self, start_row, end_row):
+        """批量填充表格数据 - 纯文本，无按钮"""
+        for row in range(start_row, end_row):
+            item = self.queue_tts[row]
+            
+            # 0: Line
+            line_item = QTableWidgetItem(str(item['line']))
+            line_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            line_item.setData(Qt.UserRole, row)
+            self.table.setItem(row, 0, line_item)
+            
+            # 1: Start (显示为  00:00:00,000)
+            start_item = QTableWidgetItem(f"{item['startraw']}")
+            start_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            start_item.setTextAlignment(Qt.AlignCenter)
+            start_item.setToolTip(tr("Double-click: -0.1s | Right-click: adjust"))
+            self.table.setItem(row, 1, start_item)
+            
+            # 2: End
+            end_item = QTableWidgetItem(f"{item['endraw']}")
+            end_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            end_item.setTextAlignment(Qt.AlignCenter)
+            end_item.setToolTip(tr("Double-click: +0.1s | Right-click: adjust"))
+            self.table.setItem(row, 2, end_item)
+            
+            # 3: Status
+            msg_item = QTableWidgetItem(item['_msg'])
+            msg_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+            msg_item.setTextAlignment(Qt.AlignCenter)
+            dubbing = float(item.get('dubbing_s', 0.0))
+            if dubbing <= 0:
+                msg_item.setForeground(QColor("#ffaa00"))  # 橙色
+            elif item['_msg'] != 'OK':
+                msg_item.setForeground(QColor("#ff6666"))  # 红色
+            else:
+                msg_item.setForeground(QColor("#66ff66"))  # 绿色
+            self.table.setItem(row, 3, msg_item)
+            
+            # 4: Text (可编辑)
+            text_item = QTableWidgetItem(item['text'])
+            text_item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsEditable | Qt.ItemIsSelectable)
+            self.table.setItem(row, 4, text_item)
+
+    def _load_remaining(self, start_row):
+        """延迟加载剩余行"""
+        total = len(self.queue_tts)
+        batch_size = 500  # 更大批次
+        
+        end_row = min(start_row + batch_size, total)
+        self._batch_fill(start_row, end_row)
+        
+        if end_row < total:
+            QTimer.singleShot(0, lambda: self._load_remaining(end_row))
+
+    def _on_cell_double_clicked(self, row, col):
+        """单元格双击"""
+        if col == 1:  # Start 列 - 减0.1秒
+            self._adjust_time(row, 'start', -100)
+        elif col == 2:  # End 列 - 加0.1秒
+            self._adjust_time(row, 'end', 100)
+        elif col == 4:  # Text 列 - 编辑
+            self.table.editItem(self.table.item(row, col))
+
+    def _show_context_menu(self, pos):
+        """显示右键菜单"""
+        item = self.table.itemAt(pos)
+        if not item:
+            return
+        
+        row = item.row()
+        col = item.column()
+        
+        menu = QMenu(self)
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #2a2a2a;
+                color: #ccc;
+                border: 1px solid #444;
+            }
+            QMenu::item:selected {
+                background-color: #0066cc;
+            }
+        """)
+        
+        if col == 1:  # Start 列
+            menu.addAction(tr("Start -0.1s"), lambda: self._adjust_time(row, 'start', -100))
+            menu.addAction(tr("Start +0.1s"), lambda: self._adjust_time(row, 'start', 100))
+            menu.addSeparator()
+            menu.addAction(tr("Custom adjust..."), lambda: self._custom_adjust(row, 'start'))
+            
+        elif col == 2:  # End 列
+            menu.addAction(tr("End -0.1s"), lambda: self._adjust_time(row, 'end', -100))
+            menu.addAction(tr("End +0.1s"), lambda: self._adjust_time(row, 'end', 100))
+            menu.addSeparator()
+            menu.addAction(tr("Custom adjust..."), lambda: self._custom_adjust(row, 'end'))
+            
+        elif col == 3:  # Status 列
+            menu.addAction(tr("Trial dubbing"), lambda: self._listen(row))
+            menu.addAction(tr("Re-dubbed"), lambda: self._redub(row))
+            
+        elif col == 4:  # Text 列
+            menu.addAction(tr("Trial dubbing"), lambda: self._listen(row))
+            menu.addAction(tr("Re-dubbed"), lambda: self._redub(row))
+            menu.addSeparator()
+            menu.addAction(tr("Clear text"), lambda: self._clear_text(row))
+        
+        menu.exec(self.table.viewport().mapToGlobal(pos))
+
+    def _custom_adjust(self, row, mode):
+        """自定义时间调整"""
+        ms, ok = QInputDialog.getInt(
+            self, tr("Adjust time"), 
+            tr("Enter milliseconds (positive or negative):"),
+            0, -10000, 10000, 100
+        )
+        if ok:
+            self._adjust_time(row, mode, ms)
+
+    def _clear_text(self, row):
+        """清空文本"""
+        text_item = self.table.item(row, 4)
+        if text_item:
+            text_item.setText("")
+            self.queue_tts[row]['text'] = ""
+
+    def _adjust_time(self, row, mode, offset_ms):
+        """调整时间"""
+        self.stop_countdown()
+        
+        if not (0 <= row < len(self.queue_tts)):
+            return
+
+        item = self.queue_tts[row]
+        prev_item = self.queue_tts[row - 1] if row > 0 else None
+        next_item = self.queue_tts[row + 1] if row < len(self.queue_tts) - 1 else None
+
+        buffer = 10
+
+        if mode == 'start':
+            new_start = item['start_time'] + offset_ms
+
+            limit_min = 0
+            if prev_item:
+                limit_min = prev_item['end_time'] + buffer
+
+            if new_start < limit_min:
+                self._show_error(tr("Cannot overlap with previous subtitle"))
+                return
+
+            limit_max = item['end_time'] - buffer
+            if new_start > limit_max:
+                self._show_error(tr("Start time cannot exceed End time"))
+                return
+
+            item['start_time'] = new_start
+            item['start_time_source'] = new_start
+            item['startraw'] = self._ms_to_fmt(new_start)
+
+        elif mode == 'end':
+            new_end = item['end_time'] + offset_ms
+
+            limit_min = item['start_time'] + buffer
+            if new_end < limit_min:
+                self._show_error(tr("End time cannot be less than Start time"))
+                return
+
+            limit_max = float('inf')
+            if next_item:
+                limit_max = next_item['start_time'] - buffer
+
+            if new_end > limit_max:
+                self._show_error(tr("Cannot overlap with next subtitle"))
+                return
+
+            item['end_time'] = new_end
+            item['end_time_source'] = new_end
+            item['endraw'] = self._ms_to_fmt(new_end)
+
+        # 更新显示
+        self._refresh_row(row)
+
+    def _ms_to_fmt(self, ms):
+        """毫秒转时间格式"""
+        seconds, milliseconds = divmod(ms, 1000)
+        minutes, seconds = divmod(seconds, 60)
+        hours, minutes = divmod(minutes, 60)
+        return f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d},{int(milliseconds):03d}"
+
+    def _refresh_row(self, row):
+        """刷新指定行"""
+        item = self.queue_tts[row]
+        
+        # 更新Start
+        start_item = self.table.item(row, 1)
+        if start_item:
+            start_item.setText(f"{item['startraw']}")
+        
+        # 更新End
+        end_item = self.table.item(row, 2)
+        if end_item:
+            end_item.setText(f"{item['endraw']}")
+        
+        # 重新计算状态
+        duration = (item['end_time'] - item['start_time']) / 1000.0
+        dubbing = float(item.get('dubbing_s', 0.0))
+        diff = round(dubbing - duration, 3)
+        
+        if dubbing <= 0.0:
+            msg = tr('No audio')
+        elif diff > 0:
+            msg = f'[{dubbing}s]{tr("Exceeded")}{diff}s'
+        elif diff < 0:
+            msg = f'[{dubbing}s]{tr("Shortened")}{abs(diff)}s'
+        else:
+            msg = '=='
+        
+        msg_item = self.table.item(row, 3)
+        if msg_item:
+            msg_item.setText(msg)
+            if dubbing <= 0:
+                msg_item.setForeground(QColor("#ffaa00"))
+            elif msg != 'OK':
+                msg_item.setForeground(QColor("#ff6666"))
+            else:
+                msg_item.setForeground(QColor("#66ff66"))
+
+    def _listen(self, row):
+        """试听"""
+        self.stop_countdown()
+        item = self.queue_tts[row]
+        filename = item['filename']
+        
+        if not tools.vail_file(filename):
+            QMessageBox.information(self, tr("The audio file does not exist"), tr("The audio file does not exist"))
+            return
+        
+        threading.Thread(target=tools.pygameaudio, args=(filename,), daemon=True).start()
+
+    def _redub(self, row):
+        """重配音"""
+        self.stop_countdown()
+        
+        # 删除旧文件
+        try:
+            Path(self.queue_tts[row]['filename']).unlink(missing_ok=True)
+        except Exception as e:
+            print(f"删除文件失败: {e}")
+        
+        # 重置时长
+        self.queue_tts[row]['dubbing_s'] = 0.0
+        self._refresh_row(row)
+        
+        # 获取当前文本
+        text_item = self.table.item(row, 4)
+        current_text = text_item.text() if text_item else self.queue_tts[row]['text']
+        
+        # 准备TTS参数
+        tts_dict = self.queue_tts[row].copy()
+        tts_dict['text'] = current_text
+        
+        # 启动后台线程
+        task = ReDubb(parent=self, idx=row, tts_dict=tts_dict, language=self.language)
+        task.uito.connect(self._on_redub_finished, type=Qt.ConnectionType.QueuedConnection)
+        task.start()
+
+    def _on_redub_finished(self, msg):
+        """重配音完成回调"""
+        print(f'{msg=}')
+        if msg.startswith("ok:"):
+            idx = int(msg[3:])
+            item = self.queue_tts[idx]
+            
+            # 读取新文件时长
+            try:
+                if Path(item['filename']).exists():
+                    item['dubbing_s'] = len(AudioSegment.from_file(item['filename'])) / 1000.0
+                else:
+                    item['dubbing_s'] = 0.0
+            except Exception:
+                item['dubbing_s'] = 0.0
+            
+            # 更新状态显示
+            self._refresh_row(idx)
+            
+            # 播放新音频
+            threading.Thread(target=tools.pygameaudio, args=(item['filename'],), daemon=True).start()
+        else:
+            QMessageBox.information(self, 'Error', msg)
+
+    def _show_error(self, msg):
+        """显示错误"""
+        if hasattr(self, 'prompt_label') and self.prompt_label:
+            original_text = self.prompt_label.text()
+            original_style = self.prompt_label.styleSheet()
+            
+            self.prompt_label.setText(f"Error: {msg}")
+            self.prompt_label.setStyleSheet("font-size:16px; font-weight:bold; color:red;")
+            
+            def restore():
+                if hasattr(self, 'prompt_label') and self.prompt_label:
+                    self.prompt_label.setText(original_text)
+                    self.prompt_label.setStyleSheet(original_style)
+            QTimer.singleShot(2000, restore)
 
     def cancel_and_close(self):
         if hasattr(self, 'timer') and self.timer:
             self.timer.stop()
         self.reject()
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            event.ignore()
-        else:
-            super().keyPressEvent(event)
 
     def update_countdown(self):
         self.count_down -= 1
@@ -721,122 +581,26 @@ class EditDubbingResultDialog(QDialog):
                 pass
             self.stop_button = None
 
-    def create_container(self):
-        pass
-
-    def create_subtitle_assignment_area(self):
-        self.model = DubbingModel(self.queue_tts, self)
-        self.delegate = DubbingDelegate(self.list_view)
-
-        self.delegate.btn_listen_clicked.connect(self.listen)
-        self.delegate.btn_redub_clicked.connect(self.re_dubb)
-        self.delegate.btn_adjust_time.connect(self.adjust_subtitle_time)
-
-        self.list_view.setModel(self.model)
-        self.list_view.setItemDelegate(self.delegate)
-        self.list_view.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-
-        self.progress_bar.setValue(100)
-        self.loading_label.setText(tr("Data is ready rendering is in progress"))
-        QApplication.processEvents()
-
-    def adjust_subtitle_time(self, row, mode, offset):
-        self.stop_countdown()
-
-        success, msg = self.model.adjust_time(row, mode, offset)
-        if not success:
-            QToolTip.showText(QCursor.pos(), msg, self.list_view, QRect(), 3000)
-
-            if hasattr(self, 'prompt_label') and self.prompt_label:
-                original_text = self.prompt_label.text()
-                original_style = self.prompt_label.styleSheet()
-
-                self.prompt_label.setText(f"Error: {msg}")
-                self.prompt_label.setStyleSheet("font-size:16px; font-weight:bold; color:red;")
-
-                def restore():
-                    if hasattr(self, 'prompt_label') and self.prompt_label:
-                        self.prompt_label.setText(original_text)
-                        self.prompt_label.setStyleSheet(original_style)
-                QTimer.singleShot(2000, restore)
-
-    def listen(self, i):
-        self.stop_countdown()
-        item = self.queue_tts[i]
-        filename = item['filename']
-        if not tools.vail_file(filename):
-            QMessageBox.information(self, tr("The audio file does not exist"), tr("The audio file does not exist"))
-            return
-        threading.Thread(target=tools.pygameaudio, args=(filename,), daemon=True).start()
-
-    def re_dubb(self, i):
-        """重新配音 - 确保在后台线程执行，不阻塞UI"""
-        self.stop_countdown()
-        print(f'从新配音 {i=}')
-
-        # 使用 QTimer.singleShot 确保立即返回，不阻塞事件循环
-        def do_redub():
-            # 删除旧文件
-            try:
-                Path(self.queue_tts[i]['filename']).unlink(missing_ok=True)
-            except Exception as e:
-                print(f"删除文件失败: {e}")
-
-            # 重置缓存的时长，并立即刷新UI显示
-            self.queue_tts[i]['dubbing_s'] = 0.0
-            self.model.refresh_item(i)
-
-            # 准备TTS参数
-            tts_dict = self.queue_tts[i].copy()  # 使用副本避免线程安全问题
-            idx = self.model.index(i)
-            current_text = self.model.data(idx, Qt.EditRole)
-            tts_dict['text'] = current_text
-
-            # 创建并启动后台线程
-            task = ReDubb(parent=self, idx=i, tts_dict=tts_dict, language=self.language)
-            task.uito.connect(self.feed, type=Qt.ConnectionType.QueuedConnection)
-            task.start()
-
-        # 延迟执行，确保当前事件循环立即返回
-        QTimer.singleShot(0, do_redub)
-
-    def feed(self, msg):
-        print(f'{msg=}')
-        if msg.startswith("ok:"):
-            idx = int(msg[3:])
-            item = self.queue_tts[idx]
-
-            # 仅在配音完成后，读取一次文件，更新缓存
-            try:
-                if Path(item['filename']).exists():
-                    item['dubbing_s'] = len(AudioSegment.from_file(item['filename'])) / 1000.0
-                else:
-                    item['dubbing_s'] = 0.0
-            except Exception:
-                item['dubbing_s'] = 0.0
-
-            self.model.refresh_item(idx)
-            threading.Thread(target=tools.pygameaudio, args=(item['filename'],), daemon=True).start()
-        else:
-            QMessageBox.information(self, 'Error', msg)
-
-    def get_timeline_str(self, item):
-        pass
-
     def save_and_close(self):
         self.save_button.setDisabled(True)
+        
         for i, item in enumerate(self.queue_tts):
-            text = item['text'].strip()
+            # 获取最新文本
+            text_item = self.table.item(i, 4)
+            text = text_item.text().strip() if text_item else item['text'].strip()
+            item['text'] = text
+            
+            # 删除空文本对应的音频文件
             if not text:
                 Path(item['filename']).unlink(missing_ok=True)
-            try:
-                del item['__display_text']
-                del item['__display_tip']
-                del item['__display_msg_only']
-            except Exception:
-                pass
+            
+            # 清理临时字段
+            for key in ['_duration', '_msg', '_time_str']:
+                item.pop(key, None)
+        
         try:
             Path(f'{self.cache_folder}/queue_tts.json').write_text(json.dumps(self.queue_tts), encoding="utf-8")
         except Exception:
             pass
+        
         self.accept()
