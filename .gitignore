@@ -15,8 +15,8 @@
 .idea
 .venv
 debug*.py
+AGENTS.md
 err.txt
-ceshi.txt
 nolang.txt
 edgetts.txt
 output/
@@ -33,11 +33,9 @@ venv.bak
 dist
 source
 build
+ceshi*
 test*
-test.py
-test*.py
 302.py
-test.json
 ffmpeg/ffmpeg.exe
 ffmpeg/ffprobe.exe
 ffmpeg/ffplay.exe
