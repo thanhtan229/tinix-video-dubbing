@@ -35,7 +35,11 @@ class GLMTTS(BaseTTS):
                 return
             self._generate(data=data_item)
 
-        _run()
+        try:
+            _run()
+        except Exception as e:
+            self.error=e
+            raise
 
     def _generate(self, data):
         speed = 1.0
