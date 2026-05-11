@@ -26,7 +26,7 @@ class FasterAll(BaseRecogn):
         if self._exit():
             return
         self.error = ''
-        self._signal(text="STT starting, hold on...")
+        self.signal(text="STT starting, hold on...")
         if self.recogn_type == 1:  # openai-whisper
             raws = self._openai()
         else:
@@ -50,7 +50,7 @@ class FasterAll(BaseRecogn):
 
     def _openai(self):
         title=f'STT use {self.model_name}'
-        self._signal(text=title)
+        self.signal(text=title)
         # 起一个进程
         logs_file = f'{TEMP_DIR}/{self.uuid}/openai-{self.detect_language}-{time.time()}.log'
         kwargs = {
@@ -77,7 +77,7 @@ class FasterAll(BaseRecogn):
 
     def _faster(self):
         title=f"STT use {self.model_name}"
-        self._signal(text=title)
+        self.signal(text=title)
         logs_file = f'{TEMP_DIR}/{self.uuid}/faster-{self.detect_language}-{time.time()}.log'
 
         kwargs = {
