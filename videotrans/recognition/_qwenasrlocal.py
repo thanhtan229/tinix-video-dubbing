@@ -25,26 +25,32 @@ class QwenasrlocalRecogn(BaseRecogn):
 
     def __post_init__(self):
         super().__post_init__()
-        if self.model_name in ['1.7B','0.6B']:
-            self.local_dir=f'{ROOT_DIR}/models/models--Qwen--Qwen3-ASR-{self.model_name}'
-            self._repid=f'Qwen/Qwen3-ASR-{self.model_name}'
-        else:
-            self.local_dir=f'{ROOT_DIR}/models/models--ASLP-lab--CN-MultiDialect-ASR'
-            self._repid='ASLP-lab/CN-MultiDialect-ASR'
+        if self.model_name not in ['1.7B','0.6B']:
+            self.model_name='0.6B'
+        self.local_dir=f'{ROOT_DIR}/models/models--Qwen--Qwen3-ASR-{self.model_name}-hf'
+        self._repid=f'Qwen/Qwen3-ASR-{self.model_name}-hf'
+
 
 
     def _download(self):
-        if Path(self.local_dir+'/model.safetensors').exists() and Path(f"{ROOT_DIR}/models/models--Qwen--Qwen3-ForcedAligner-0.6B/model.safetensors").exists():
+        if Path(self.local_dir+'/model.safetensors').exists() and Path(f"{ROOT_DIR}/models/models--Qwen--Qwen3-ForcedAligner-0.6B-hf/model.safetensors").exists():
             return
         if not is_connect_hf():
             check_and_down_ms(self._repid, callback=self._process_callback, local_dir=self.local_dir)
-            check_and_down_ms("Qwen/Qwen3-ForcedAligner-0.6B", callback=self._process_callback, local_dir=f"{ROOT_DIR}/models/models--Qwen--Qwen3-ForcedAligner-0.6B")
+            check_and_down_ms(
+                "Qwen/Qwen3-ForcedAligner-0.6B-hf", 
+                callback=self._process_callback, 
+                local_dir=f"{ROOT_DIR}/models/models--Qwen--Qwen3-ForcedAligner-0.6B-hf")
         else:
             check_and_down_hf(model_id=self._repid,
                                     repo_id=self._repid,
                                     local_dir=self.local_dir,
                                     callback=self._process_callback)
-            check_and_down_hf("Qwen/Qwen3-ForcedAligner-0.6B",repo_id="Qwen/Qwen3-ForcedAligner-0.6B", callback=self._process_callback, local_dir=f"{ROOT_DIR}/models/models--Qwen--Qwen3-ForcedAligner-0.6B")
+            check_and_down_hf(
+                "Qwen/Qwen3-ForcedAligner-0.6B-hf",
+                repo_id="Qwen/Qwen3-ForcedAligner-0.6B-hf", 
+                callback=self._process_callback, 
+                local_dir=f"{ROOT_DIR}/models/models--Qwen--Qwen3-ForcedAligner-0.6B-hf")
 
     def _exec(self) -> Union[List[SrtItem], None]:
         if self._exit(): return
@@ -68,12 +74,12 @@ class QwenasrlocalRecogn(BaseRecogn):
             "logs_file": logs_file,
             "model_name": self.model_name,
             "local_dir":self.local_dir,
-            "local_dir_align":f"{ROOT_DIR}/models/models--Qwen--Qwen3-ForcedAligner-0.6B",
+            "local_dir_align":f"{ROOT_DIR}/models/models--Qwen--Qwen3-ForcedAligner-0.6B-hf",
             "hotword":settings.get('hotwords'),
             "min_speech_ms":_min_speech,
             "max_speech_ms":_max_speech,
             "force_align":self.detect_language in self.align_language,
-            "detect_language":self.detect_language
+            "detect_language":self.detect_language if self.detect_language not in ['auto',"",None] else None
         }
         from videotrans.process.stt_qwen import qwen3asr_fun
         jsdata = self._new_process(callback=qwen3asr_fun, title=title, is_cuda=self.is_cuda, kwargs=kwargs)
