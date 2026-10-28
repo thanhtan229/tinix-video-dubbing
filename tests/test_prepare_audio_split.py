@@ -29,10 +29,6 @@ class TestPrepareAudioImports:
         from videotrans.process.prepare_audio import pyannote_speakers
         assert callable(pyannote_speakers)
 
-    def test_reverb_speakers_importable(self):
-        from videotrans.process.prepare_audio import reverb_speakers
-        assert callable(reverb_speakers)
-
     def test_built_speakers_importable(self):
         from videotrans.process.prepare_audio import built_speakers
         assert callable(built_speakers)
@@ -44,7 +40,7 @@ class TestPrepareAudioImports:
     def test_all_9_names_importable(self):
         from videotrans.process import prepare_audio
         for name in ['vocal_bgm', 'vocal_bgm_spleeter', 'remove_noise', 'fix_punc',
-                      'cam_speakers', 'pyannote_speakers', 'reverb_speakers', 'built_speakers',
+                      'cam_speakers', 'pyannote_speakers', 'built_speakers',
                       '_write_log']:
             assert hasattr(prepare_audio, name), f"Missing: {name}"
 

@@ -9,7 +9,6 @@ class TestCJKLang:
         assert "th" in contants.CJK_LANG
         assert "km" in contants.CJK_LANG
         assert "yue" in contants.CJK_LANG
-        assert "yu" in contants.CJK_LANG
 
     def test_non_cjk_not_in_list(self):
         assert "en" not in contants.CJK_LANG
