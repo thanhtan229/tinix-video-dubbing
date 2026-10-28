@@ -23,7 +23,7 @@ Integration branch `integrate/origin-main` contains `origin/main` merged with th
 
 ## Known gaps
 
-- `tr()` falls back to en_US for keys missing from `vi.json`. 260 en_US keys are not yet translated into Vietnamese and show in English.
+- `tr()` falls back to en_US for keys missing from `vi.json`. All 260 keys that were missing have now been translated into `vi.json` (1243 keys total).
 - Local tab navigation and unified settings hub were dropped in favour of upstream navigation. `videotrans/component/unified_settings_dialog.py` remains in the tree but is not wired to any menu, so its Gemini model refresh and Test button are unreachable.
 - `videotrans/styles/style.qss` takes upstream's version; local styling for the new controls is not carried over.
 - Hybrid mode: OCR failures are reported in the status line and the run continues with Whisper output. Not exercised end-to-end on a real hybrid job.
@@ -38,8 +38,8 @@ Integration branch `integrate/origin-main` contains `origin/main` merged with th
 
 1. Review the integration commit and decide whether to fast-forward `main` to `integrate/origin-main` or keep it separate. Push only on explicit request.
 2. Decide whether to restore the unified settings hub on upstream navigation, or delete `unified_settings_dialog.py`.
-3. Translate the 260 untranslated keys into `vi.json`.
-4. Run a real hybrid recognition job on a hardsubbed clip and check the output.
+3. Run a real hybrid recognition job on a hardsubbed clip (needs a faster-whisper model; `models/` is empty here, so this was not run).
+4. Review the Vietnamese translations of the 260 newly added keys with a native speaker.
 5. Test the Gemini key flow against the live API when a key is available.
 
 ## References
