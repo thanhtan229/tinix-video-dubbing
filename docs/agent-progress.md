@@ -4,37 +4,43 @@ Updated: 2026-10-28
 
 ## Current milestone
 
-OCR subtitle extraction → TTS handoff validated locally. Integration with `origin/main` is pending a strategy decision.
+Integration branch `integrate/origin-main` contains `origin/main` merged with the local OCR, hybrid recognition and Gemini work. Not pushed. `main` is unchanged.
 
 ## Completed
 
-- OCR subtitle extraction produced an SRT from the smoke-test clip: two entries, `Hello world` and `Second line`.
-- Committed `c6bc2f78` — fix(ocr): span timing, SRT clock strings, end-time cap; regression tests in `tests/test_ocr_rapidocr.py`.
-- Committed `670c5b8d` — feat(gemini): model list refresh, connection test (30s timeout), API key masking in messages.
-- Full project test suite on the committed tree: **508 passed** (`tests/`, run with `.venv`).
-- TTS stage verified with local provider Piper (`--tts_type 7`, voice `en_US-lessac-medium`): 2/2 subtitle lines dubbed, WAV produced (4.36 s, 48 kHz stereo, non-silent). Content not listened to; audio is not aligned to SRT timings (no `--align_sub_audio`).
+- OCR subtitle extraction validated on the smoke clip (`Hello world`, `Second line`).
+- Commits on `main` before integration: `c6bc2f78` (OCR span/SRT fixes), `670c5b8d` (Gemini model refresh and test), `dad9928d` (this file).
+- Integration merge `65d7cae7` on `integrate/origin-main`: upstream navigation kept; OCR/hybrid recognition, erase mode, Gemini changes re-applied. Details in the commit message.
+- TTS stage verified with local Piper (`--tts_type 7`, voice `en_US-lessac-medium`): 2/2 lines, WAV 4.36 s, non-silent. Content not listened to; not aligned to SRT timings.
 
-## Active changes
+## Verification (on `integrate/origin-main`)
 
-- `docs/agent-progress.md` (this file) — not yet committed at time of writing.
-- Branch `main`: 12 commits ahead of local `origin/main` ref, 169 behind. No pull, rebase, merge or push performed.
+- Full suite: **490 passed, 123 failed**. The 123 failures also occur on `origin/main`; the merge introduced **0 new failures** (compared per test id).
+- `tests/test_custom_api_url.py` and `tests/test_winform_split.py` are excluded: they import modules that do not exist upstream.
+- OCR and reconciler tests: 35 passed.
+- Main window constructs offscreen; recognition mode (3 items) and erase mode (4 items) present with defaults.
+- Not run: any live provider calls (Gemini, Edge-TTS, Google Translate).
 
-## Integration with origin/main (dry run only)
+## Known gaps
 
-`git merge-tree` shows conflicts in at least: `pyproject.toml`, `tests/test_contants.py`, `videotrans/configure/_app_params.py`, `_app_settings.py`, `_i18n.py`, `videotrans/mainwin/_bind_signals.py`, `_winform.py`, `videotrans/ui/*`, `videotrans/translator/_gemini.py`, plus modify/delete conflicts on `tests/test_stt_fun_split.py` and `videotrans/language/en.json`. The `origin/main` ref was not re-fetched in this session.
+- `tr()` falls back to en_US for keys missing from `vi.json`. 260 en_US keys are not yet translated into Vietnamese and show in English.
+- Local tab navigation and unified settings hub were dropped in favour of upstream navigation. `videotrans/component/unified_settings_dialog.py` remains in the tree but is not wired to any menu, so its Gemini model refresh and Test button are unreachable.
+- `videotrans/styles/style.qss` takes upstream's version; local styling for the new controls is not carried over.
+- Hybrid mode: OCR failures are reported in the status line and the run continues with Whisper output. Not exercised end-to-end on a real hybrid job.
 
 ## Blockers and notes
 
-- Edge-TTS returned HTTP 403 and Google Translate Free returned HTTP 429 earlier; these external providers remain unverified.
-- Set `--target_language_code` when testing TTS; the voice locale otherwise fails to resolve.
-- On this Windows environment set `PYTHONUTF8=1` for the CLI to avoid `charmap` errors when printing Vietnamese text.
-- The Gemini translation path has not been exercised against the live API in this session.
+- Edge-TTS returned HTTP 403 and Google Translate Free returned HTTP 429 earlier; these providers remain unverified.
+- Set `--target_language_code` for TTS tests. Set `PYTHONUTF8=1` on this Windows environment for CLI output with Vietnamese text.
+- Another workspace holds branch `fix/ocr-pipeline-reviewed-20261028` (worktree under `C:/Users/Admin/.paseo/worktrees/013oxf38/ocr-review-fix`). It was not touched.
 
-## Recommended next step
+## Recommended next steps
 
-1. Decide the integration strategy with `origin/main` (merge into a separate integration branch, or rebase). Resolve conflicts there and re-run the full suite before any push.
-2. Re-run the Gemini Test button against a real key when available.
-3. Listen to or transcribe the Piper output to confirm dubbed content matches the source SRT.
+1. Review the integration commit and decide whether to fast-forward `main` to `integrate/origin-main` or keep it separate. Push only on explicit request.
+2. Decide whether to restore the unified settings hub on upstream navigation, or delete `unified_settings_dialog.py`.
+3. Translate the 260 untranslated keys into `vi.json`.
+4. Run a real hybrid recognition job on a hardsubbed clip and check the output.
+5. Test the Gemini key flow against the live API when a key is available.
 
 ## References
 
