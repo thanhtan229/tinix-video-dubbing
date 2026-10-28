@@ -40,6 +40,7 @@ class Gemini(BaseTrans):
                 http_options = types.HttpOptions(
                     client_args={'proxy': self.proxy_str},
                     async_client_args={'proxy': self.proxy_str},
+                    timeout=30_000 if self.is_test else None,
                 )
 
             )
@@ -111,6 +112,10 @@ class Gemini(BaseTrans):
             raise TranslateSrtError(f"Gemini result is emtpy")
         except httpx.ConnectTimeout as e:
             raise StopTask(f' {tr("Unable to connect to remote API","Gemini AI")}\n{e}') from e
+        except httpx.TimeoutException as e:
+            if self.is_test:
+                raise StopTask(f'{tr("Gemini test request timed out after 30 seconds")}\n{e}') from e
+            raise
         except errors.APIError as e:
             logger.warning(f'{e=}')
             if e.code in [400,403,404,429,500]:

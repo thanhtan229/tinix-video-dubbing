@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 from PySide6 import QtCore, QtWidgets, QtGui
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QThread, Signal
 from PySide6.QtGui import QIcon, QFont
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QListWidgetItem,
@@ -12,6 +12,53 @@ from PySide6.QtWidgets import (
 )
 
 from videotrans.configure.config import tr, params, settings, app_cfg, ROOT_DIR
+
+
+class GeminiModelListTask(QThread):
+    models_found = Signal(list)
+    failed = Signal(str)
+
+    def __init__(self, api_key: str, proxy: str = "", parent=None):
+        super().__init__(parent)
+        self.api_key = api_key
+        self.proxy = proxy
+
+    def run(self):
+        client = None
+        try:
+            from google import genai
+            from google.genai import types
+
+            client_args = {"proxy": self.proxy} if self.proxy else None
+            client = genai.Client(
+                api_key=self.api_key,
+                http_options=types.HttpOptions(
+                    timeout=30_000,
+                    client_args=client_args,
+                    async_client_args=client_args,
+                ),
+            )
+            models = set()
+            for model in client.models.list():
+                actions = {str(action).lower() for action in (model.supported_actions or [])}
+                if "generatecontent" not in actions or not model.name:
+                    continue
+                name = model.name.removeprefix("models/")
+                models.add(name)
+            self.models_found.emit(sorted(models, key=str.casefold))
+        except Exception as exc:
+            message = str(exc)
+            for key in self.api_key.split(","):
+                key = key.strip()
+                if key:
+                    message = message.replace(key, "[hidden]")
+            self.failed.emit(message)
+        finally:
+            if client is not None:
+                try:
+                    client.close()
+                except Exception:
+                    pass
 
 
 class UnifiedSettingsDialog(QDialog):
@@ -192,14 +239,118 @@ class UnifiedSettingsDialog(QDialog):
         f.setLabelAlignment(Qt.AlignRight)
         self.txt_gemini_key = QLineEdit(params.get('gemini_key', ''))
         self.txt_gemini_key.setEchoMode(QLineEdit.PasswordEchoOnEdit)
-        self.txt_gemini_model = QLineEdit(params.get('gemini_model', 'gemini-2.0-flash'))
+        self.cb_gemini_model = QComboBox()
+        self.cb_gemini_model.setMinimumWidth(220)
+        current_model = str(params.get('gemini_model', 'gemini-2.0-flash')).strip()
+        if current_model:
+            self.cb_gemini_model.addItem(current_model)
+        self.btn_gemini_refresh_models = QPushButton(tr("Quét / Refresh"))
+        self.btn_gemini_refresh_models.clicked.connect(self._refresh_gemini_models)
+        model_row = QHBoxLayout()
+        model_row.addWidget(self.cb_gemini_model, 1)
+        model_row.addWidget(self.btn_gemini_refresh_models)
         self.sp_gemini_token = QSpinBox()
         self.sp_gemini_token.setRange(1024, 65536)
         self.sp_gemini_token.setValue(int(params.get('gemini_maxtoken', 32768)))
+        self.btn_gemini_test = QPushButton(tr("Test"))
+        self.btn_gemini_test.clicked.connect(self._test_gemini)
         f.addRow("API Key:", self.txt_gemini_key)
-        f.addRow(tr("Tên mô hình (Model):"), self.txt_gemini_model)
+        f.addRow(tr("Tên mô hình (Model):"), model_row)
         f.addRow(tr("Max Output Tokens:"), self.sp_gemini_token)
+        f.addRow("", self.btn_gemini_test)
         return w
+
+    def _refresh_gemini_models(self):
+        key = self.txt_gemini_key.text().strip().split(",", 1)[0].strip()
+        if not key:
+            QMessageBox.warning(self, tr("Gemini AI"), tr("Please enter a Gemini API key first."))
+            return
+
+        task = getattr(self, "_gemini_models_task", None)
+        if task is not None and task.isRunning():
+            return
+
+        self.btn_gemini_refresh_models.setEnabled(False)
+        self.btn_gemini_refresh_models.setText(tr("Scanning..."))
+        task = GeminiModelListTask(key, proxy=app_cfg.proxy or "", parent=self.parent())
+        task.models_found.connect(self._on_gemini_models_found)
+        task.failed.connect(self._on_gemini_models_failed)
+        task.finished.connect(self._on_gemini_models_finished)
+        task.finished.connect(task.deleteLater)
+        self._gemini_models_task = task
+        task.start()
+
+    def _on_gemini_models_found(self, models: list):
+        if not models:
+            QMessageBox.information(
+                self,
+                tr("Gemini AI"),
+                tr("No models supporting content generation were returned for this API key."),
+            )
+            return
+
+        current_model = self.cb_gemini_model.currentText()
+        self.cb_gemini_model.clear()
+        self.cb_gemini_model.addItems(models)
+        if current_model in models:
+            self.cb_gemini_model.setCurrentText(current_model)
+        QMessageBox.information(
+            self,
+            tr("Gemini AI"),
+            tr("Found %1 supported models.").replace("%1", str(len(models))),
+        )
+
+    def _on_gemini_models_failed(self, message: str):
+        QMessageBox.critical(self, tr("Gemini AI"), message)
+
+    def _on_gemini_models_finished(self):
+        self.btn_gemini_refresh_models.setEnabled(True)
+        self.btn_gemini_refresh_models.setText(tr("Quét / Refresh"))
+        self._gemini_models_task = None
+
+    def _test_gemini(self):
+        key = self.txt_gemini_key.text().strip()
+        if not key:
+            QMessageBox.warning(self, tr("Gemini AI"), tr("Please enter a Gemini API key first."))
+            return
+
+        task = getattr(self, "_gemini_test_task", None)
+        if task is not None and task.isRunning():
+            return
+
+        # Save the values being tested so the existing translator uses the current form values.
+        params['gemini_key'] = key
+        params['gemini_model'] = self.cb_gemini_model.currentText().strip()
+        params['gemini_maxtoken'] = self.sp_gemini_token.value()
+        params.save()
+
+        from videotrans.translator import GEMINI_INDEX
+        from videotrans.util.TestSrtTrans import TestSrtTrans
+
+        self.btn_gemini_test.setEnabled(False)
+        self.btn_gemini_test.setText(tr("Testing..."))
+        task = TestSrtTrans(parent=self.parent(), translator_type=GEMINI_INDEX)
+        task.uito.connect(self._on_gemini_test_result)
+        task.finished.connect(self._on_gemini_test_finished)
+        task.finished.connect(task.deleteLater)
+        self._gemini_test_task = task
+        task.start()
+
+    def _on_gemini_test_result(self, message: str):
+        # A provider error may echo request details; keep the configured key out of the dialog.
+        keys = [key.strip() for key in self.txt_gemini_key.text().split(",") if key.strip()]
+        safe_message = message
+        for key in keys:
+            safe_message = safe_message.replace(key, "[hidden]")
+        if safe_message.startswith("ok"):
+            QMessageBox.information(self, tr("Gemini AI"), safe_message[3:])
+        else:
+            QMessageBox.critical(self, tr("Gemini AI"), safe_message)
+
+    def _on_gemini_test_finished(self):
+        self.btn_gemini_test.setEnabled(True)
+        self.btn_gemini_test.setText(tr("Test"))
+        self._gemini_test_task = None
 
     def _make_deepseek_trans_form(self) -> QWidget:
         w = QWidget()
@@ -540,7 +691,7 @@ class UnifiedSettingsDialog(QDialog):
     def _save_all_settings(self, show_msg=True):
         # Gemini
         params['gemini_key'] = self.txt_gemini_key.text().strip()
-        params['gemini_model'] = self.txt_gemini_model.text().strip()
+        params['gemini_model'] = self.cb_gemini_model.currentText().strip()
         params['gemini_maxtoken'] = self.sp_gemini_token.value()
 
         # DeepSeek
