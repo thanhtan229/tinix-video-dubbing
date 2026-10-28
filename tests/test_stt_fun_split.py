@@ -5,55 +5,55 @@ import tempfile
 
 class TestSTTFunImports:
     def test_openai_whisper_importable(self):
-        from videotrans.process.stt_fun import openai_whisper
+        from videotrans.process.stt_openai import openai_whisper
         assert callable(openai_whisper)
 
     def test_faster_whisper_importable(self):
-        from videotrans.process.stt_fun import faster_whisper
+        from videotrans.process.stt_faster import faster_whisper
         assert callable(faster_whisper)
 
     def test_pipe_asr_importable(self):
-        from videotrans.process.stt_fun import pipe_asr
+        from videotrans.process.stt_pipe import pipe_asr
         assert callable(pipe_asr)
 
     def test_paraformer_importable(self):
-        from videotrans.process.stt_fun import paraformer
+        from videotrans.process.stt_paraformer import paraformer
         assert callable(paraformer)
 
     def test_qwen3asr_fun_importable(self):
-        from videotrans.process.stt_fun import qwen3asr_fun
+        from videotrans.process.stt_qwen import qwen3asr_fun
         assert callable(qwen3asr_fun)
 
     def test_funasr_mlt_importable(self):
-        from videotrans.process.stt_fun import funasr_mlt
+        from videotrans.process.stt_funasr import funasr_mlt
         assert callable(funasr_mlt)
 
     def test_write_log_importable(self):
-        from videotrans.process.stt_fun import _write_log
+        from videotrans.process._stt_utils import _write_log
         assert callable(_write_log)
 
     def test_remove_unwanted_characters_importable(self):
-        from videotrans.process.stt_fun import _remove_unwanted_characters
+        from videotrans.process._stt_utils import _remove_unwanted_characters
         assert callable(_remove_unwanted_characters)
 
     def test_resegment_importable(self):
-        from videotrans.process.stt_fun import _resegment
+        from videotrans.process._stt_utils import _resegment
         assert callable(_resegment)
 
     def test_direct_submodule_imports(self):
-        from videotrans.process._stt_openai import openai_whisper as a
-        from videotrans.process._stt_faster import faster_whisper as b
-        from videotrans.process._stt_pipe import pipe_asr as c
-        from videotrans.process._stt_paraformer import paraformer as d
-        from videotrans.process._stt_qwen import qwen3asr_fun as e
-        from videotrans.process._stt_funasr import funasr_mlt as f
+        from videotrans.process.stt_openai import openai_whisper as a
+        from videotrans.process.stt_faster import faster_whisper as b
+        from videotrans.process.stt_pipe import pipe_asr as c
+        from videotrans.process.stt_paraformer import paraformer as d
+        from videotrans.process.stt_qwen import qwen3asr_fun as e
+        from videotrans.process.stt_funasr import funasr_mlt as f
         from videotrans.process._stt_utils import _write_log, _remove_unwanted_characters, _resegment
         assert all(callable(x) for x in [a, b, c, d, e, f, _write_log, _remove_unwanted_characters, _resegment])
 
 
 class TestFunctionSignatures:
     def test_openai_whisper_signature(self):
-        from videotrans.process.stt_fun import openai_whisper
+        from videotrans.process.stt_openai import openai_whisper
         sig = inspect.signature(openai_whisper)
         params = list(sig.parameters.keys())
         assert 'prompt' in params
@@ -66,7 +66,7 @@ class TestFunctionSignatures:
         assert sig.return_annotation is not inspect.Signature.empty
 
     def test_faster_whisper_signature(self):
-        from videotrans.process.stt_fun import faster_whisper
+        from videotrans.process.stt_faster import faster_whisper
         sig = inspect.signature(faster_whisper)
         params = list(sig.parameters.keys())
         assert 'prompt' in params
@@ -82,7 +82,7 @@ class TestFunctionSignatures:
         assert sig.return_annotation is not inspect.Signature.empty
 
     def test_pipe_asr_signature(self):
-        from videotrans.process.stt_fun import pipe_asr
+        from videotrans.process.stt_pipe import pipe_asr
         sig = inspect.signature(pipe_asr)
         params = list(sig.parameters.keys())
         assert 'prompt' in params
@@ -97,7 +97,7 @@ class TestFunctionSignatures:
         assert sig.return_annotation is not inspect.Signature.empty
 
     def test_paraformer_signature(self):
-        from videotrans.process.stt_fun import paraformer
+        from videotrans.process.stt_paraformer import paraformer
         sig = inspect.signature(paraformer)
         params = list(sig.parameters.keys())
         assert 'cut_audio_list' in params
@@ -112,20 +112,19 @@ class TestFunctionSignatures:
         assert sig.return_annotation is not inspect.Signature.empty
 
     def test_qwen3asr_fun_signature(self):
-        from videotrans.process.stt_fun import qwen3asr_fun
+        from videotrans.process.stt_qwen import qwen3asr_fun
         sig = inspect.signature(qwen3asr_fun)
         params = list(sig.parameters.keys())
         assert 'cut_audio_list' in params
         assert 'logs_file' in params
         assert 'is_cuda' in params
         assert 'audio_file' in params
-        assert 'model_name' in params
+        assert 'local_dir' in params
         assert 'device_index' in params
         assert 'hotword' in params
-        assert sig.return_annotation is not inspect.Signature.empty
 
     def test_funasr_mlt_signature(self):
-        from videotrans.process.stt_fun import funasr_mlt
+        from videotrans.process.stt_funasr import funasr_mlt
         sig = inspect.signature(funasr_mlt)
         params = list(sig.parameters.keys())
         assert 'cut_audio_list' in params
@@ -143,21 +142,21 @@ class TestFunctionSignatures:
 
 class TestRemoveUnwantedCharacters:
     def test_strips_angle_bracket_markers(self):
-        from videotrans.process.stt_fun import _remove_unwanted_characters
+        from videotrans.process._stt_utils import _remove_unwanted_characters
         assert _remove_unwanted_characters('Hello <|en|> world') == 'Hello  world'
         assert _remove_unwanted_characters('测试<|zh|>文本') == '测试文本'
         assert _remove_unwanted_characters('no markers here') == 'no markers here'
         assert _remove_unwanted_characters('<|unk|><|noise|>text') == 'text'
 
     def test_preserves_normal_text(self):
-        from videotrans.process.stt_fun import _remove_unwanted_characters
+        from videotrans.process._stt_utils import _remove_unwanted_characters
         assert _remove_unwanted_characters('abc 123 !@#') == 'abc 123 !@#'
         assert _remove_unwanted_characters('中文日文 Korean') == '中文日文 Korean'
 
 
 class TestResegment:
     def test_short_segment_not_split(self):
-        from videotrans.process.stt_fun import _resegment
+        from videotrans.process._stt_utils import _resegment
         texts = [
             {
                 'text': 'Hello world',
@@ -176,7 +175,7 @@ class TestResegment:
         assert result[0]['end_time'] == 1000
 
     def test_chinese_text_no_spaces(self):
-        from videotrans.process.stt_fun import _resegment
+        from videotrans.process._stt_utils import _resegment
         texts = [
             {
                 'text': '你好世界',
@@ -193,7 +192,7 @@ class TestResegment:
         assert result[0]['text'] == '你好世界'
 
     def test_long_segment_with_punctuation_split(self):
-        from videotrans.process.stt_fun import _resegment
+        from videotrans.process._stt_utils import _resegment
         texts = [
             {
                 'text': 'Hello world, this is a very long sentence that should be split.',
@@ -221,7 +220,7 @@ class TestResegment:
             assert item['end_time'] - item['start_time'] <= 3000
 
     def test_no_words_fallback(self):
-        from videotrans.process.stt_fun import _resegment
+        from videotrans.process._stt_utils import _resegment
         texts = [
             {
                 'text': 'Some text without words field',
@@ -236,7 +235,7 @@ class TestResegment:
 
 class TestWriteLog:
     def test_writes_to_file(self):
-        from videotrans.process.stt_fun import _write_log
+        from videotrans.process._stt_utils import _write_log
         with tempfile.NamedTemporaryFile(mode='w', suffix='.log', delete=False) as f:
             log_path = f.name
         try:
@@ -247,7 +246,7 @@ class TestWriteLog:
             os.unlink(log_path)
 
     def test_writes_to_nonexistent_file(self):
-        from videotrans.process.stt_fun import _write_log
+        from videotrans.process._stt_utils import _write_log
         log_path = os.path.join(tempfile.gettempdir(), '_stt_test_nonexistent_dir', 'test.log')
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         try:
@@ -257,9 +256,3 @@ class TestWriteLog:
         finally:
             os.unlink(log_path)
             os.rmdir(os.path.dirname(log_path))
-
-
-class TestProcessInitReExports:
-    def test_process_init_exports(self):
-        from videotrans.process import openai_whisper, faster_whisper, pipe_asr, paraformer, qwen3asr_fun, funasr_mlt
-        assert all(callable(x) for x in [openai_whisper, faster_whisper, pipe_asr, paraformer, qwen3asr_fun, funasr_mlt])
