@@ -59,19 +59,78 @@ class RecognMixin:
                 except Exception as e:
                     logger.exception(f'降噪失败，跳过 {e}', exc_info=True)
 
-        self.signal(text=tr("Speech Recognition to Word Processing"))
-        raw_subtitles = run_recogn(
-            recogn_type=self.cfg.recogn_type,
-            uuid=self.uuid,
-            model_name=self.cfg.model_name,
-            audio_file=self.cfg.source_wav,
-            detect_language=self.cfg.detect_language,
-            cache_folder=self.cfg.cache_folder,
-            is_cuda=self.cfg.is_cuda,
-            subtitle_type=self.cfg.subtitle_type,
-            max_speakers=self.max_speakers,
-            llm_post=self.cfg.rephrase==1
-        )
+        recogn_mode = getattr(self.cfg, 'recogn_mode', 0)
+        crop_box = getattr(self.cfg, 'ocr_crop_box', (0.75, 0.96, 0.05, 0.95))
+
+        if recogn_mode == 1:
+            self.signal(text=tr("Starting OCR Subtitle Extraction..."))
+            from videotrans.ocr import run_ocr_extraction
+            def ocr_cb(pct, msg):
+                self.signal(text=msg)
+            raw_subtitles = run_ocr_extraction(
+                video_file=self.cfg.name,
+                crop_box=crop_box,
+                callback=ocr_cb
+            )
+        elif recogn_mode == 2:
+            self.signal(text=tr("Running Hybrid Whisper & Video OCR..."))
+            from videotrans.ocr import run_ocr_extraction, align_and_reconcile_transcripts
+            from videotrans.task.taskcfg import SrtItem
+
+            def ocr_cb(pct, msg):
+                self.signal(text=f"[Hybrid OCR] {msg}")
+
+            whisper_subs = run_recogn(
+                recogn_type=self.cfg.recogn_type,
+                uuid=self.uuid,
+                model_name=self.cfg.model_name,
+                audio_file=self.cfg.source_wav,
+                detect_language=self.cfg.detect_language,
+                cache_folder=self.cfg.cache_folder,
+                is_cuda=self.cfg.is_cuda,
+                subtitle_type=self.cfg.subtitle_type,
+                max_speakers=self.max_speakers,
+                llm_post=self.cfg.rephrase==1
+            )
+            ocr_subs = []
+            try:
+                ocr_subs = run_ocr_extraction(
+                    video_file=self.cfg.name,
+                    crop_box=crop_box,
+                    callback=ocr_cb
+                )
+            except Exception as e:
+                logger.exception(f"Hybrid OCR extraction failed: {e}")
+
+            aligned = align_and_reconcile_transcripts(whisper_subs, ocr_subs)
+            raw_subtitles = []
+            for it in aligned:
+                final_text = it["whisper_text"]
+                if not final_text and it["ocr_text"]:
+                    final_text = it["ocr_text"]
+                raw_subtitles.append(SrtItem(
+                    line=it["line"],
+                    time=it["time"],
+                    text=final_text,
+                    start_time=it["start_time"],
+                    end_time=it["end_time"],
+                    startraw=it["startraw"],
+                    endraw=it["endraw"]
+                ))
+        else:
+            self.signal(text=tr("Speech Recognition to Word Processing"))
+            raw_subtitles = run_recogn(
+                recogn_type=self.cfg.recogn_type,
+                uuid=self.uuid,
+                model_name=self.cfg.model_name,
+                audio_file=self.cfg.source_wav,
+                detect_language=self.cfg.detect_language,
+                cache_folder=self.cfg.cache_folder,
+                is_cuda=self.cfg.is_cuda,
+                subtitle_type=self.cfg.subtitle_type,
+                max_speakers=self.max_speakers,
+                llm_post=self.cfg.rephrase==1
+            )
         if self._exit(): return
         if not raw_subtitles:
             raise SpeechToTextError(self.cfg.basename + tr('recogn result is empty'))

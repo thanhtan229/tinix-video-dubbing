@@ -124,6 +124,8 @@ class TaskCfgBase:
     target_sub: Union[os.PathLike, str] = None  # 目标字幕文件绝对路径
     target_wav: Union[os.PathLike, str] = None  # 目标语言音频，存在于临时文件夹下
     target_wav_output: Union[os.PathLike, str] = None  # 目标语言音频输出，存在于目标文件夹下
+    erase_sub_mode: int = 0  # 0=Không xóa, 1=Gaussian Blur, 2=Cinema Box, 3=Delogo
+    erase_sub_area: tuple = (0.75, 0.96, 0.05, 0.95)  # (ymin, ymax, xmin, xmax)
 
 
 # 语音识别
@@ -139,6 +141,8 @@ class TaskCfgSTT(TaskCfgBase):
     nums_diariz: int = 0  # 是否进行说话人识别
     rephrase: int = 0  # 0 默认断句不处理 1=LLM重新断句
     fix_punc: int = 0  # 0=默认，1=恢复标点符号，2=移除所有标点
+    recogn_mode: int = 0  # 0=Whisper, 1=OCR Subtitle, 2=Hybrid (Whisper+OCR+LLM)
+    ocr_crop_box: tuple = (0.75, 0.96, 0.05, 0.95)  # (ymin, ymax, xmin, xmax)
 
     def __repr__(self):
         from videotrans.recognition import ALLOW_CHANGE_MODEL

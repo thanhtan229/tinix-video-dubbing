@@ -255,7 +255,8 @@ class AssembleMixin:
 
             else:
                 cmd1.append('-filter_complex')
-                subtitle_filter = [f"[0:v]subtitles=filename='{subtitles_file}'[v_out]"]
+                sub_filter_str = self._build_subtitle_filter(subtitles_file)
+                subtitle_filter = [sub_filter_str]
                 cmd2 = [
                     "-map",
                     "[v_out]",
@@ -442,3 +443,36 @@ class AssembleMixin:
             return True
         except subprocess.CalledProcessError as e:
             raise FFmpegError(f"尝试使用硬件执行命令出错[CalledProcessError]:{e.stderr}\n{e.stdout},{e}") from e
+
+    def _build_subtitle_filter(self, subtitles_file: str) -> str:
+        erase_mode = getattr(self.cfg, 'erase_sub_mode', 0)
+        if erase_mode == 0:
+            return f"[0:v]subtitles=filename='{subtitles_file}'[v_out]"
+
+        crop_box = getattr(self.cfg, 'erase_sub_area', (0.75, 0.96, 0.05, 0.95))
+        w_px = int(self.video_info.get('width', 1920) or 1920)
+        h_px = int(self.video_info.get('height', 1080) or 1080)
+
+        ymin_r, ymax_r, xmin_r, xmax_r = crop_box
+        x = max(0, int(round(xmin_r * w_px)))
+        y = max(0, int(round(ymin_r * h_px)))
+        w = min(w_px - x, max(2, int(round((xmax_r - xmin_r) * w_px))))
+        h = min(h_px - y, max(2, int(round((ymax_r - ymin_r) * h_px))))
+
+        # Ensure even coordinates and dimensions
+        w = max(2, (w // 2) * 2)
+        h = max(2, (h // 2) * 2)
+        x = (x // 2) * 2
+        y = (y // 2) * 2
+
+        if erase_mode == 1:
+            # Gaussian / Box Blur
+            return f"[0:v]split[main][crop_part];[crop_part]crop={w}:{h}:{x}:{y},boxblur=luma_radius=15:luma_power=3[blurred];[main][blurred]overlay={x}:{y}[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
+        elif erase_mode == 2:
+            # Cinema Box
+            return f"[0:v]drawbox=x={x}:y={y}:w={w}:h={h}:color=black@0.75:t=fill[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
+        elif erase_mode == 3:
+            # Delogo
+            return f"[0:v]delogo=x={x}:y={y}:w={w}:h={h}:show=0[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
+
+        return f"[0:v]subtitles=filename='{subtitles_file}'[v_out]"
