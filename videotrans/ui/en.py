@@ -254,7 +254,10 @@ class Ui_MainWindow(object):
         self.import_subtitle.setCursor(Qt.PointingHandCursor)
         self.subtitle_layout.addWidget(self.import_subtitle)
 
-        self.horizontalLayout_7.addWidget(self.splitter)
+        self.central_stack = QtWidgets.QStackedWidget(self.centralwidget)
+        self.central_stack.setObjectName("central_stack")
+        self.central_stack.addWidget(self.splitter)
+        self.horizontalLayout_7.addWidget(self.central_stack)
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.statusBar = QtWidgets.QStatusBar()
@@ -413,21 +416,29 @@ class Ui_MainWindow(object):
         self.actiontencent_key.setText(tr("Tencent Key"))
         self.action_about.setText(tr("Donating developers"))
 
-        self.action_biaozhun.setText(tr("Standard Function Mode"))
+        self.action_biaozhun.setText(tr("🎬 01 | Dịch & Lồng Tiếng Video"))
         self.action_biaozhun.setToolTip(
             tr("Batch audio or video translation with all configuration options customizable on demand"))
-        self.action_yuyinshibie.setText(tr("Speech Recognition Text"))
+        self.action_tiquzimu.setText(tr("📝 02 | Trích Xuất Phụ Đề"))
+        self.action_tiquzimu.setToolTip(
+            tr("Batch recognize speech in video as srt subtitles"))
+        self.action_yuyinshibie.setText(tr("🎙️ 03 | Nhận Dạng Giọng Nói (STT)"))
         self.action_yuyinshibie.setToolTip(
             tr("stt-windows-title"))
 
-        self.action_yuyinhecheng.setText(tr("From  Text  Into  Speech"))
+        self.action_yuyinhecheng.setText(tr("🔊 04 | Chuyển Văn Bản -> Giọng Nói (TTS)"))
         self.action_yuyinhecheng.setToolTip(
             tr("tts-windows-title"))
 
-        self.action_tiquzimu.setText(tr("Extract Srt And Translate"))
-        self.action_tiquzimu.setToolTip(
-            tr("Batch recognize speech in video as srt subtitles"))
-        self.action_yingyinhebing.setText(tr("Video Subtitles Merging"))
+        self.action_fanyi.setText(tr("🌐 05 | Dịch Tệp Phụ Đề SRT"))
+        self.action_fanyi.setToolTip(
+            tr("transsrt-windows-title"))
+
+        self.actionsrtmultirole.setText(tr("👥 06 | Lồng Tiếng Đa Nhân Vật"))
+        self.actionsrtmultirole.setToolTip(
+            tr("multi-windows-title"))
+
+        self.action_yingyinhebing.setText(tr("🎞️ 07 | Ghép Video + Audio + SRT"))
         self.action_yingyinhebing.setToolTip(tr("hebing-windows-title"))
 
         self.action_yinshipinfenli.setText(tr("Separate Video to audio"))
@@ -442,10 +453,6 @@ class Ui_MainWindow(object):
         self.action_hun.setText(tr("Mixing 2 Audio Streams"))
         self.action_hun.setToolTip(tr("Mix two audio files into one audio file"))
         self.action_formatsrtfiles.setText(tr("Batch create folder structure"))
-
-        self.action_fanyi.setText(tr("Text  Or Srt  Translation"))
-        self.action_fanyi.setToolTip(
-            tr("transsrt-windows-title"))
 
         self.action_hebingsrt.setText(tr("Combine Two Subtitles"))
         self.action_hebingsrt.setToolTip(
@@ -479,7 +486,3 @@ class Ui_MainWindow(object):
         self.actionsubtitlescover.setText(tr("Conversion Subtitle Format"))
         self.actionsubtitlescover.setToolTip(
             tr("Batch convert subtitle formats (srt/ass/vtt)"))
-
-        self.actionsrtmultirole.setText(tr("Multi voice dubbing for SRT"))
-        self.actionsrtmultirole.setToolTip(
-            tr("multi-windows-title"))

@@ -74,6 +74,22 @@ def _create_asr_row(ui, parent):
     ui.reglabel.setStyleSheet("""background-color:transparent""")
 
     ui.reglabel.setText(tr("Speech Recognit"))
+
+    ui.recogn_mode = QtWidgets.QComboBox(parent)
+    ui.recogn_mode.setObjectName("recogn_mode")
+    ui.recogn_mode.addItems([
+        tr("1. Whisper (Âm thanh - ASR)"),
+        tr("2. OCR Phụ đề (Video VSE)"),
+        tr("3. Kết hợp Hybrid (Whisper + OCR + LLM)")
+    ])
+    ui.recogn_mode.setToolTip(tr("Chọn phương thức nhận diện nội dung video: Qua âm thanh, Quét chữ phụ đề trên video (OCR) hoặc Kết hợp cả hai (Hybrid)."))
+
+    ui.btn_crop_box = QtWidgets.QPushButton(parent)
+    ui.btn_crop_box.setObjectName("btn_crop_box")
+    ui.btn_crop_box.setText(tr("📐 Vùng quét OCR"))
+    ui.btn_crop_box.setToolTip(tr("Kéo chọn khung chữ nhật chứa phụ đề trên khung hình video để tăng tốc và tránh nhận diện nhầm logo."))
+    ui.btn_crop_box.setVisible(False)
+
     ui.recogn_type = QtWidgets.QComboBox(parent)
     ui.recogn_type.setMinimumSize(QtCore.QSize(_channel_com, 30))
     ui.recogn_type.setObjectName("label_5")
@@ -83,7 +99,7 @@ def _create_asr_row(ui, parent):
     ui.model_name_help.setText(tr("ASRModel"))
 
     ui.model_name = QtWidgets.QComboBox(parent)
-    ui.model_name.setMinimumWidth(250)
+    ui.model_name.setMinimumWidth(200)
     ui.model_name.setObjectName("model_name")
 
     ui.rephrase = QtWidgets.QComboBox()
@@ -100,6 +116,8 @@ def _create_asr_row(ui, parent):
     ui.recogn2pass.setText(tr("STT again"))
 
     layout.addWidget(ui.reglabel)
+    layout.addWidget(ui.recogn_mode)
+    layout.addWidget(ui.btn_crop_box)
     layout.addWidget(ui.recogn_type)
     layout.addWidget(ui.model_name_help)
     layout.addWidget(ui.model_name)
@@ -216,10 +234,25 @@ def _create_alignment_row(ui, parent):
     ui.align_sub_audio = QtWidgets.QCheckBox()
     ui.align_sub_audio.setObjectName("align_sub_audio")
     ui.align_sub_audio.setVisible(False)
-
     ui.subtitle_type = QtWidgets.QComboBox(parent)
     ui.subtitle_type.setMinimumSize(QtCore.QSize(150, 30))
     ui.subtitle_type.setObjectName("subtitle_type")
+
+    ui.erase_sub_mode = QtWidgets.QComboBox(parent)
+    ui.erase_sub_mode.setObjectName("erase_sub_mode")
+    ui.erase_sub_mode.addItems([
+        tr("Giữ nguyên video (Không che phụ đề cũ)"),
+        tr("Làm mờ phụ đề cũ (Gaussian Blur) ⚡"),
+        tr("Dải nền mờ điện ảnh (Cinema Box)"),
+        tr("Xóa viền nội suy (FFmpeg Delogo)")
+    ])
+    ui.erase_sub_mode.setToolTip(tr("Tùy chọn xóa hoặc làm mờ vùng phụ đề cũ của video gốc trước khi nhúng đè phụ đề dịch mới lên trên."))
+
+    ui.btn_erase_area = QtWidgets.QPushButton(parent)
+    ui.btn_erase_area.setObjectName("btn_erase_area")
+    ui.btn_erase_area.setText(tr("📐 Vùng xóa"))
+    ui.btn_erase_area.setToolTip(tr("Kéo chọn vị trí khung chữ nhật chứa phụ đề cũ cần làm mờ hoặc che phủ."))
+    ui.btn_erase_area.setVisible(False)
 
     layout.addWidget(ui.align_btn)
     layout.addWidget(ui.voice_autorate)
@@ -227,6 +260,8 @@ def _create_alignment_row(ui, parent):
     layout.addWidget(ui.remove_silent_mid)
     layout.addWidget(ui.align_sub_audio)
     layout.addWidget(ui.subtitle_type)
+    layout.addWidget(ui.erase_sub_mode)
+    layout.addWidget(ui.btn_erase_area)
 
     ui.set_adv_status = QtWidgets.QPushButton()
     ui.set_adv_status.setText(tr('More settings'))

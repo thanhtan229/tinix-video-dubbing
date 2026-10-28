@@ -386,3 +386,4 @@ def openwin():
         winobj.set_ass.clicked.connect(_open_ass)
 
     QTimer.singleShot(10, _init_ui)
+    return winobj

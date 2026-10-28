@@ -5,7 +5,7 @@ import os
 
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-from PySide6.QtCore import QEvent, QTimer
+from PySide6.QtCore import QEvent, QTimer, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow
 from videotrans.configure import config
@@ -42,8 +42,9 @@ class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui
         self.app_mode = "biaozhun"
         self.current_rolelist = []
         self.setWindowIcon(QIcon(f"{ROOT_DIR}/videotrans/styles/icon.ico"))
-        self.rawtitle = f"{tr('softname')} {VERSION} {tr('Documents')} pyvideotrans.com"
+        self.rawtitle = f"Tinix Video Dubbing {VERSION} - Lồng Tiếng & Dịch Video AI"
         self.setWindowTitle(self.rawtitle)
+        self.embedded_widgets = {}
 
         self.moshi = {
             "biaozhun": self.action_biaozhun,
@@ -92,6 +93,23 @@ class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui
         _role = params.get('voice_role') or 'No'
         _model_name = params.get('model_name')
 
+        _recogn_mode = int(params.get('recogn_mode', 0))
+        self.recogn_mode_val = _recogn_mode
+        self.ocr_crop_box_val = tuple(params.get('ocr_crop_box', [0.75, 0.96, 0.05, 0.95]))
+        self.recogn_mode.setCurrentIndex(_recogn_mode)
+        if _recogn_mode == 1:
+            self.btn_crop_box.setVisible(True)
+            self.recogn_type.setVisible(False)
+            self.model_name.setVisible(False)
+            self.model_name_help.setVisible(False)
+        elif _recogn_mode == 2:
+            self.btn_crop_box.setVisible(True)
+            self.recogn_type.setVisible(True)
+            self.model_name.setVisible(True)
+            self.model_name_help.setVisible(True)
+        else:
+            self.btn_crop_box.setVisible(False)
+
         self.translate_type.setCurrentIndex(_translate_type)
         self.tts_type.setCurrentIndex(_tts_type)
         self.recogn_type.setCurrentIndex(_recogn_type)
@@ -110,6 +128,12 @@ class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui
         if _subtitle_type > 2:
             self.output_srt.setVisible(True)
             self.output_srt.setCurrentIndex(_output_srt if _output_srt > 0 else 2)
+
+        _erase_sub_mode = int(params.get('erase_sub_mode', 0))
+        self.erase_sub_mode_val = _erase_sub_mode
+        self.erase_sub_area_val = tuple(params.get('erase_sub_area', [0.75, 0.96, 0.05, 0.95]))
+        self.erase_sub_mode.setCurrentIndex(_erase_sub_mode)
+        self.btn_erase_area.setVisible(bool(_erase_sub_mode > 0))
 
         if params['output_dir'].strip():
             Path(params['output_dir']).mkdir(parents=True, exist_ok=True)
@@ -198,5 +222,76 @@ class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui
         if event.type() == QEvent.Type.ActivationChange:
             if self.isActiveWindow():
                 self.aisendsrt.setChecked(settings.get('aisendsrt'))
+
+    def switch_main_tab(self, tab_index: int):
+        """
+        Switch between all 7 tabs directly inside the main window stacked widget (Zero popups!).
+        0: [ 01 ] Full Video Dubbing (Standard mode)
+        1: [ 02 ] Extract Subtitles (Tiqu mode)
+        2: [ 03 ] Speech to text (fn_recogn)
+        3: [ 04 ] Text to speech (fn_peiyin)
+        4: [ 05 ] Translate SRT (fn_fanyisrt)
+        5: [ 06 ] Multi-speaker dubbing (fn_peiyinrole)
+        6: [ 07 ] Merge Video/Audio/SRT (fn_vas)
+        """
+        if hasattr(self, 'tab_button_group'):
+            btn = self.tab_button_group.button(tab_index)
+            if btn and not btn.isChecked():
+                btn.setChecked(True)
+
+        actions = [
+            self.action_biaozhun,
+            self.action_tiquzimu,
+            self.action_yuyinshibie,
+            self.action_yuyinhecheng,
+            self.action_fanyi,
+            self.actionsrtmultirole,
+            self.action_yingyinhebing
+        ]
+        for i, act in enumerate(actions):
+            act.blockSignals(True)
+            act.setChecked(bool(i == tab_index))
+            act.blockSignals(False)
+
+        if tab_index == 0:
+            self.central_stack.setCurrentIndex(0)
+            if self.win_action:
+                self.win_action.set_biaozhun()
+            return
+        elif tab_index == 1:
+            self.central_stack.setCurrentIndex(0)
+            if self.win_action:
+                self.win_action.set_tiquzimu()
+            return
+
+        tool_map = {
+            2: "fn_recogn",
+            3: "fn_peiyin",
+            4: "fn_fanyisrt",
+            5: "fn_peiyinrole",
+            6: "fn_vas"
+        }
+        mod_name = tool_map.get(tab_index)
+        if not mod_name:
+            return
+
+        widget = self.embedded_widgets.get(mod_name)
+        if not widget:
+            from videotrans import winform
+            tool_module = winform.get_win(mod_name)
+            widget = tool_module.openwin()
+            if widget:
+                widget.setWindowFlags(Qt.Widget)
+                self.embedded_widgets[mod_name] = widget
+                self.central_stack.addWidget(widget)
+
+        if widget:
+            if hasattr(widget, 'update_ui'):
+                try:
+                    widget.update_ui()
+                except Exception:
+                    pass
+            self.central_stack.setCurrentWidget(widget)
+
     
     

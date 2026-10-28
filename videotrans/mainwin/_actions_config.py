@@ -9,6 +9,107 @@ from videotrans.util.help_role import role_menu
 
 class WinActionConfigMixin:
 
+    def recogn_mode_change(self):
+        mode = self.main.recogn_mode.currentIndex()
+        self.main.recogn_mode_val = mode
+        params['recogn_mode'] = mode
+        params.save()
+
+        if mode == 1:
+            # OCR only
+            self.main.btn_crop_box.setVisible(True)
+            self.main.recogn_type.setVisible(False)
+            self.main.model_name.setVisible(False)
+            self.main.model_name_help.setVisible(False)
+        elif mode == 2:
+            # Hybrid
+            self.main.btn_crop_box.setVisible(True)
+            self.main.recogn_type.setVisible(True)
+            self.main.model_name.setVisible(True)
+            self.main.model_name_help.setVisible(True)
+        else:
+            # Whisper only
+            self.main.btn_crop_box.setVisible(False)
+            self.main.recogn_type.setVisible(True)
+            self.main.model_name.setVisible(True)
+            self.main.model_name_help.setVisible(True)
+
+    def open_crop_dialog(self):
+        from videotrans.component.crop_subtitle_dialog import CropSubtitleDialog
+        from PySide6.QtWidgets import QMessageBox
+
+        video_path = ""
+        if hasattr(self, 'queue_mp4') and self.queue_mp4:
+            video_path = self.queue_mp4[0]
+
+        if not video_path or not Path(video_path).is_file():
+            QMessageBox.information(
+                self.main,
+                tr("Thông báo"),
+                tr("Vui lòng chọn hoặc kéo thả video vào phần mềm trước để xem trước khung hình chọn vùng phụ đề.")
+            )
+            return
+
+        current_box = getattr(self.main, 'ocr_crop_box_val', (0.75, 0.96, 0.05, 0.95))
+        dialog = CropSubtitleDialog(video_path=video_path, current_box=current_box, parent=self.main)
+        if dialog.exec():
+            new_box = dialog.get_crop_box()
+            self.main.ocr_crop_box_val = new_box
+            params['ocr_crop_box'] = list(new_box)
+            params.save()
+            QMessageBox.information(
+                self.main,
+                tr("Thành công"),
+                tr("Đã lưu vùng quét phụ đề OCR: Đáy {0}% -> {1}%, Trái {2}% -> {3}%").format(
+                    int(new_box[0] * 100), int(new_box[1] * 100),
+                    int(new_box[2] * 100), int(new_box[3] * 100)
+                )
+            )
+
+    def erase_sub_mode_change(self):
+        mode = self.main.erase_sub_mode.currentIndex()
+        self.main.erase_sub_mode_val = mode
+        params['erase_sub_mode'] = mode
+        params.save()
+
+        if mode > 0:
+            self.main.btn_erase_area.setVisible(True)
+        else:
+            self.main.btn_erase_area.setVisible(False)
+
+    def open_erase_dialog(self):
+        from videotrans.component.crop_subtitle_dialog import CropSubtitleDialog
+        from PySide6.QtWidgets import QMessageBox
+
+        video_path = ""
+        if hasattr(self, 'queue_mp4') and self.queue_mp4:
+            video_path = self.queue_mp4[0]
+
+        if not video_path or not Path(video_path).is_file():
+            QMessageBox.information(
+                self.main,
+                tr("Thông báo"),
+                tr("Vui lòng chọn hoặc kéo thả video vào phần mềm trước để xem trước khung hình chọn vùng phụ đề.")
+            )
+            return
+
+        current_box = getattr(self.main, 'erase_sub_area_val', (0.75, 0.96, 0.05, 0.95))
+        dialog = CropSubtitleDialog(video_path=video_path, current_box=current_box, parent=self.main)
+        dialog.setWindowTitle(tr("Chọn vùng phụ đề cũ cần xóa / làm mờ"))
+        if dialog.exec():
+            new_box = dialog.get_crop_box()
+            self.main.erase_sub_area_val = new_box
+            params['erase_sub_area'] = list(new_box)
+            params.save()
+            QMessageBox.information(
+                self.main,
+                tr("Thành công"),
+                tr("Đã lưu vùng xóa/làm mờ phụ đề cũ: Đáy {0}% -> {1}%, Trái {2}% -> {3}%").format(
+                    int(new_box[0] * 100), int(new_box[1] * 100),
+                    int(new_box[2] * 100), int(new_box[3] * 100)
+                )
+            )
+
     def show_xxl_select(self):
         import sys
         if sys.platform != 'win32':

@@ -381,3 +381,4 @@ def openwin():
 
 
     QTimer.singleShot(10, _bind)
+    return winobj

@@ -42,11 +42,11 @@ def _init_language(settings):
         if not _lang:
             _lang = QLocale.system().name()[:2].lower()
     except Exception:
-        _lang = "en"
+        _lang = "vi"
 
     if _lang not in SUPPORT_LANG:
-        _lang = "en"
-    if not settings.lang:
+        _lang = "vi" if "vi" in SUPPORT_LANG else "en"
+    if not settings.lang or settings.lang not in SUPPORT_LANG:
         settings.lang = _lang
         settings.save()
     defaulelang = _lang

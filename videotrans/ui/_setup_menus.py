@@ -48,11 +48,38 @@ def _setup_actions_and_menus(ui, MainWindow):
     # ui.toolBar.setIconSize(QtCore.QSize(100, 40))
     ui.toolBar.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
     ui.toolBar.setFloatable(True)
-    ui.toolBar.setObjectName("toolBar")
     ui.toolBar.setStyleSheet("""
-    QToolBar QToolButton {
-        min-width: 100px; 
-        text-align: center; 
+    QToolBar {
+        background-color: #161E26;
+        border-right: 1px solid #32414B;
+        padding: 8px 6px;
+        spacing: 6px;
+    }
+    QToolBar QPushButton, QToolBar QToolButton {
+        min-width: 240px;
+        max-width: 240px;
+        min-height: 42px;
+        max-height: 42px;
+        padding-left: 16px;
+        padding-right: 10px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 13px;
+        border-radius: 8px;
+        background-color: #212C36;
+        color: #DFE1E2;
+        border: 1px solid #384956;
+    }
+    QToolBar QPushButton:hover, QToolBar QToolButton:hover {
+        background-color: #2A3844;
+        border-color: #2F7579;
+        color: #FFFFFF;
+    }
+    QToolBar QPushButton:checked, QToolBar QToolButton:checked {
+        background-color: #124548;
+        border-left: 4px solid #FF4800;
+        color: #FFFFFF;
+        font-weight: 700;
     }
 """)
     MainWindow.addToolBar(QtCore.Qt.LeftToolBarArea, ui.toolBar)
@@ -201,10 +228,31 @@ def _setup_actions_and_menus(ui, MainWindow):
     ui.menuBar.addAction(ui.menu.menuAction())
     ui.menuBar.addAction(ui.menu_H.menuAction())
 
-    ui.toolBar.addAction(ui.action_biaozhun)
-    ui.toolBar.addAction(ui.action_tiquzimu)
-    ui.toolBar.addAction(ui.action_yuyinshibie)
-    ui.toolBar.addAction(ui.action_yuyinhecheng)
-    ui.toolBar.addAction(ui.action_fanyi)
-    ui.toolBar.addAction(ui.actionsrtmultirole)
-    ui.toolBar.addAction(ui.action_yingyinhebing)
+    tab_defs = [
+        (ui.action_biaozhun, "btn_tab_0"),
+        (ui.action_tiquzimu, "btn_tab_1"),
+        (ui.action_yuyinshibie, "btn_tab_2"),
+        (ui.action_yuyinhecheng, "btn_tab_3"),
+        (ui.action_fanyi, "btn_tab_4"),
+        (ui.actionsrtmultirole, "btn_tab_5"),
+        (ui.action_yingyinhebing, "btn_tab_6")
+    ]
+    ui.tab_button_group = QtWidgets.QButtonGroup(MainWindow)
+    ui.tab_button_group.setExclusive(True)
+    ui.tab_buttons = []
+    for idx, (act, btn_name) in enumerate(tab_defs):
+        act.setCheckable(True)
+        btn = QtWidgets.QPushButton()
+        btn.setObjectName(btn_name)
+        btn.setCheckable(True)
+        btn.setCursor(QtCore.Qt.PointingHandCursor)
+        btn.setText(act.text())
+        btn.setToolTip(act.toolTip())
+        btn.clicked.connect(act.trigger)
+        act.changed.connect(lambda b=btn, a=act: b.setText(a.text()))
+        setattr(ui, btn_name, btn)
+        ui.tab_buttons.append(btn)
+        ui.tab_button_group.addButton(btn, idx)
+        ui.toolBar.addWidget(btn)
+    ui.btn_tab_0.setChecked(True)
+    ui.action_biaozhun.setChecked(True)

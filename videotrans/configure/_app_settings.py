@@ -116,7 +116,7 @@ class AppSettings:
     def _get_defaults(self) -> Dict:
         return {
             "homedir": ROOT_DIR + "/output",
-            "lang": "",
+            "lang": "vi",
             "Faster_Whisper_XXL": "",
             "Whisper_cpp": "",
             "Whisper_cpp_models": Whisper_cpp_models,
