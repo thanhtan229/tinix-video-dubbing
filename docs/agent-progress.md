@@ -30,7 +30,8 @@ Updated: 2026-10-28
 - `videotrans/styles/style.qss` takes upstream's version; local styling for the new controls is not carried over.
 - The 260 new Vietnamese strings were written by the agent and have not been reviewed by a native speaker.
 - Hybrid mode: OCR failures are reported in the status line and the run continues with Whisper output.
-- Hybrid output quality: reconciliation kept the Whisper text (lowercase, no punctuation, two lines merged) and the OCR stray `C` was not filtered. The hybrid benefit is not yet demonstrated on this clip.
+- Hybrid output after the reconciler fix (`_reconciler.py`): a Whisper segment that spans two on-screen lines is split into one entry per OCR line, using OCR text and timing. On the synthetic clip this gives `Hello world` (0–3.36 s) and `C Second line` (3.36–4.36 s). The stray `C` is still there because it is part of the same OCR line; a single-character filter only removes standalone items. Not fixed.
+- Whisper timing is lost for split segments (entries use OCR timing), so the hybrid path now relies on OCR quality for those lines.
 
 ## Blockers and notes
 
@@ -42,7 +43,7 @@ Updated: 2026-10-28
 
 ## Recommended next steps
 
-1. Improve the hybrid reconciliation: keep the OCR text when Whisper merges lines, and filter single-character OCR artifacts.
+1. Remove the stray leading character in OCR lines (for example `C Second line`), or confirm it is caused by the crop box and fix the box.
 2. Run the hybrid check on a real hardsubbed video with natural speech, not the synthetic clip.
 3. Review the new Vietnamese strings with a native speaker.
 

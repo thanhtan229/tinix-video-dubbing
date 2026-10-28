@@ -36,6 +36,24 @@ def get_item_ms(item: SrtItem) -> Tuple[int, int]:
     return _value_to_ms(item.start_time), _value_to_ms(item.end_time)
 
 
+def _is_meaningful_ocr(text) -> bool:
+    """OCR text shorter than two visible characters is treated as noise."""
+    return len("".join(str(text or "").split())) >= 2
+
+
+def _ocr_only_entry(o_item: SrtItem) -> Dict:
+    return {
+        "line": 0,
+        "time": o_item.time,
+        "start_time": o_item.start_time,
+        "end_time": o_item.end_time,
+        "whisper_text": "",
+        "ocr_text": o_item.text,
+        "startraw": o_item.startraw,
+        "endraw": o_item.endraw
+    }
+
+
 def align_and_reconcile_transcripts(
     whisper_items: List[SrtItem],
     ocr_items: List[SrtItem]
@@ -44,6 +62,9 @@ def align_and_reconcile_transcripts(
     Align Whisper audio transcript with OCR visual transcript based on time overlap.
     Returns aligned pairs suitable for LLM cross-referencing and error correction.
     """
+    # Single-character OCR results are almost always noise, not subtitle text.
+    ocr_items = [it for it in ocr_items if _is_meaningful_ocr(it.text)]
+
     if not whisper_items and not ocr_items:
         return []
 
@@ -79,20 +100,30 @@ def align_and_reconcile_transcripts(
         ]
 
     aligned_pairs = []
+    emitted_ocr = set()
 
     for w_idx, w_item in enumerate(whisper_items, start=1):
         w_start, w_end = get_item_ms(w_item)
-        matching_ocr_texts = []
+        matches = []
 
-        for o_item in ocr_items:
+        for o_idx, o_item in enumerate(ocr_items):
             o_start, o_end = get_item_ms(o_item)
             # Calculate time overlap
             overlap = max(0, min(w_end, o_end) - max(w_start, o_start))
             if overlap > 0 or (abs(w_start - o_start) < 600 and abs(w_end - o_end) < 600):
-                matching_ocr_texts.append(o_item.text)
+                matches.append((o_idx, o_item))
 
-        ocr_combined = " ".join(matching_ocr_texts).strip()
+        if len(matches) >= 2:
+            # Whisper merged several on-screen lines into one segment. Emit one entry per
+            # OCR line so the on-screen text and its own timing are kept.
+            for o_idx, o_item in matches:
+                if o_idx in emitted_ocr:
+                    continue
+                emitted_ocr.add(o_idx)
+                aligned_pairs.append(_ocr_only_entry(o_item))
+            continue
 
+        ocr_combined = " ".join(o_item.text for _, o_item in matches).strip()
         aligned_pairs.append({
             "line": w_idx,
             "time": w_item.time,
@@ -104,6 +135,9 @@ def align_and_reconcile_transcripts(
             "endraw": w_item.endraw
         })
 
+    aligned_pairs.sort(key=lambda it: _value_to_ms(it["startraw"]))
+    for line_no, it in enumerate(aligned_pairs, start=1):
+        it["line"] = line_no
     return aligned_pairs
 
 
