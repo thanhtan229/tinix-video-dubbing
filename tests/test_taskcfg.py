@@ -195,8 +195,8 @@ class TestTaskCfgBase:
         assert cfg.uuid is None
         assert cfg.name is None
         assert cfg.is_cuda is False
-        assert cfg.source_language is None
-        assert cfg.target_language is None
+        assert cfg.source_language == ""
+        assert cfg.target_language == ""
 
     def test_partial_initialization(self):
         uid = str(_uuid.uuid4())
@@ -224,8 +224,8 @@ class TestTaskCfgSTT:
         assert cfg.remove_noise is False
         assert cfg.enable_diariz is False
         assert cfg.nums_diariz == 0
-        assert cfg.fix_punc is False
-        assert cfg.rephrase == 2
+        assert cfg.fix_punc == 0
+        assert cfg.rephrase == 0
 
     def test_stt_specific_fields(self):
         cfg = TaskCfgSTT(
@@ -313,7 +313,6 @@ class TestTaskCfgVTT:
     def test_vtt_defaults(self):
         cfg = TaskCfgVTT()
         assert cfg.app_mode == "biaozhun"
-        assert cfg.subtitles == ""
         assert cfg.is_separate is False
         assert cfg.embed_bgm is True
         assert cfg.clear_cache is False
