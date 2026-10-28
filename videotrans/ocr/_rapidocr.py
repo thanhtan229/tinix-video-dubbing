@@ -54,6 +54,49 @@ def string_similarity(s1: str, s2: str) -> float:
     return SequenceMatcher(None, clean1, clean2).ratio()
 
 
+# Mean absolute pixel difference (0-255) below which two subtitle crops are treated as identical.
+# Hardcoded subtitles stay still for seconds, so reusing the last OCR result is safe and avoids
+# running the (slow) recognizer on every sampled frame.
+ROI_UNCHANGED_THRESHOLD = 3.0
+ROI_PIXEL_DIFF_THRESHOLD = 25.0
+ROI_MIN_CHANGED_RATIO = 0.0005
+
+
+def roi_changed(
+    prev_roi,
+    roi,
+    threshold: float = ROI_UNCHANGED_THRESHOLD,
+    pixel_diff_threshold: float = ROI_PIXEL_DIFF_THRESHOLD,
+    min_pixel_ratio: float = ROI_MIN_CHANGED_RATIO,
+) -> bool:
+    if prev_roi is None:
+        return roi is not None and getattr(roi, "size", 0) > 0
+    if roi is None:
+        return getattr(prev_roi, "size", 0) > 0
+
+    prev_size = getattr(prev_roi, "size", 0)
+    curr_size = getattr(roi, "size", 0)
+    if prev_size == 0 and curr_size == 0:
+        return False
+    if prev_size == 0 or curr_size == 0:
+        return True
+
+    if prev_roi.shape != roi.shape:
+        return True
+
+    diff = cv2.absdiff(prev_roi, roi)
+    if float(diff.mean()) > threshold:
+        return True
+
+    max_diff = diff.max(axis=-1) if diff.ndim >= 3 else diff
+    num_changed = int((max_diff > pixel_diff_threshold).sum())
+    total_pixels = max_diff.size
+    if total_pixels > 0 and (num_changed / total_pixels) >= min_pixel_ratio:
+        return True
+
+    return False
+
+
 class VideoSubtitleExtractor:
     """
     Video Subtitle Extractor using RapidOCR (ONNX).
@@ -79,6 +122,7 @@ class VideoSubtitleExtractor:
         self.max_gap_merge_ms = max_gap_merge_ms
         self.callback = callback
         self.ocr = get_ocr_instance()
+        self.clip_duration_ms: Optional[int] = None
 
     def run(self) -> List[SrtItem]:
         if not os.path.exists(self.video_path):
@@ -93,6 +137,8 @@ class VideoSubtitleExtractor:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         duration_sec = total_frames / orig_fps if orig_fps > 0 else 0
+        clip_duration_ms = int(duration_sec * 1000) if duration_sec > 0 else None
+        self.clip_duration_ms = clip_duration_ms
 
         # Calculate bounding box in pixels
         ymin_r, ymax_r, xmin_r, xmax_r = self.crop_box
@@ -102,9 +148,11 @@ class VideoSubtitleExtractor:
         x2 = min(width, int(xmax_r * width))
 
         frame_step = max(1, int(orig_fps / self.sample_fps))
+        frame_step_ms = max(1, int((frame_step / orig_fps) * 1000))
         current_frame_idx = 0
 
         raw_events = []  # List of (time_ms, text)
+        prev_roi, prev_text = None, ""
         start_time = time.time()
 
         while True:
@@ -114,16 +162,25 @@ class VideoSubtitleExtractor:
                 break
 
             time_ms = int((current_frame_idx / orig_fps) * 1000)
+            if clip_duration_ms is not None and clip_duration_ms > 0:
+                time_ms = min(time_ms, clip_duration_ms)
 
             # Crop ROI
             roi = frame[y1:y2, x1:x2]
-            
-            # OCR inference
-            ocr_result, _ = self.ocr(roi)
-            text = ""
-            if ocr_result:
-                text_lines = [box_info[1].strip() for box_info in ocr_result if box_info[1].strip()]
-                text = " ".join(text_lines)
+
+            # OCR inference (skipped while the subtitle crop is visually unchanged)
+            if roi.size == 0:
+                text = ""
+                prev_roi, prev_text = roi, text
+            elif roi_changed(prev_roi, roi):
+                ocr_result, _ = self.ocr(roi)
+                text = ""
+                if ocr_result:
+                    text_lines = [box_info[1].strip() for box_info in ocr_result if box_info[1].strip()]
+                    text = " ".join(text_lines)
+                prev_roi, prev_text = roi, text
+            else:
+                text = prev_text
 
             raw_events.append((time_ms, text.strip()))
 
@@ -138,12 +195,24 @@ class VideoSubtitleExtractor:
         cap.release()
 
         # Aggregate raw frame events into continuous subtitle spans
-        srt_items = self._aggregate_events(raw_events, frame_step_ms=int(1000 / self.sample_fps))
+        srt_items = self._aggregate_events(
+            raw_events,
+            frame_step_ms=frame_step_ms,
+            clip_duration_ms=clip_duration_ms
+        )
         return srt_items
 
-    def _aggregate_events(self, events: List[Tuple[int, str]], frame_step_ms: int) -> List[SrtItem]:
+    def _aggregate_events(
+        self,
+        events: List[Tuple[int, str]],
+        frame_step_ms: int,
+        clip_duration_ms: Optional[int] = None
+    ) -> List[SrtItem]:
         if not events:
             return []
+
+        if clip_duration_ms is None:
+            clip_duration_ms = getattr(self, "clip_duration_ms", None)
 
         merged_spans = []  # List of dict(start_ms, end_ms, text)
         current_span = None
@@ -155,17 +224,21 @@ class VideoSubtitleExtractor:
                     current_span = None
                 continue
 
+            span_end = time_ms + frame_step_ms
+            if clip_duration_ms is not None and clip_duration_ms > 0:
+                span_end = min(span_end, clip_duration_ms)
+
             if current_span is None:
                 current_span = {
                     "start_ms": time_ms,
-                    "end_ms": time_ms + frame_step_ms,
+                    "end_ms": span_end,
                     "text": text
                 }
             else:
                 sim = string_similarity(current_span["text"], text)
                 if sim >= self.similarity_threshold:
                     # Same subtitle, extend end time
-                    current_span["end_ms"] = time_ms + frame_step_ms
+                    current_span["end_ms"] = span_end
                     # Prefer longer text if similarity is high
                     if len(text) > len(current_span["text"]):
                         current_span["text"] = text
@@ -174,7 +247,7 @@ class VideoSubtitleExtractor:
                     merged_spans.append(current_span)
                     current_span = {
                         "start_ms": time_ms,
-                        "end_ms": time_ms + frame_step_ms,
+                        "end_ms": span_end,
                         "text": text
                     }
 
@@ -184,6 +257,10 @@ class VideoSubtitleExtractor:
         # Post-processing: Merge close gaps and filter short durations
         filtered_spans = []
         for span in merged_spans:
+            if clip_duration_ms is not None and clip_duration_ms > 0:
+                span["end_ms"] = min(span["end_ms"], clip_duration_ms)
+                span["start_ms"] = min(span["start_ms"], clip_duration_ms)
+
             duration = span["end_ms"] - span["start_ms"]
             if duration < self.min_subtitle_duration_ms:
                 continue
@@ -194,26 +271,42 @@ class VideoSubtitleExtractor:
                 sim = string_similarity(prev["text"], span["text"])
                 if gap <= self.max_gap_merge_ms and sim >= self.similarity_threshold:
                     prev["end_ms"] = span["end_ms"]
+                    if clip_duration_ms is not None and clip_duration_ms > 0:
+                        prev["end_ms"] = min(prev["end_ms"], clip_duration_ms)
                     continue
 
             filtered_spans.append(span)
 
         # Convert to SrtItem objects
         result_srt = []
-        for idx, span in enumerate(filtered_spans, start=1):
-            start_str = ms_to_time_string(ms=span["start_ms"])
-            end_str = ms_to_time_string(ms=span["end_ms"])
-            
+        line_idx = 1
+        for span in filtered_spans:
+            start_ms = span["start_ms"]
+            end_ms = span["end_ms"]
+            if clip_duration_ms is not None and clip_duration_ms > 0:
+                start_ms = min(start_ms, clip_duration_ms)
+                end_ms = min(end_ms, clip_duration_ms)
+
+            if end_ms <= start_ms:
+                continue
+
+            start_str = ms_to_time_string(ms=start_ms)
+            end_str = ms_to_time_string(ms=end_ms)
+
+            # start_time/end_time are integer milliseconds, matching the Whisper SrtItems that
+            # downstream timing code (task/_rate.py, dubbing) does arithmetic on.
+            # startraw/endraw are formatted SRT clock strings (HH:MM:SS,mmm).
             item = SrtItem(
-                line=idx,
+                line=line_idx,
                 time=f"{start_str} --> {end_str}",
                 text=span["text"],
-                start_time=start_str,
-                end_time=end_str,
-                startraw=span["start_ms"],
-                endraw=span["end_ms"]
+                start_time=int(start_ms),
+                end_time=int(end_ms),
+                startraw=start_str,
+                endraw=end_str
             )
             result_srt.append(item)
+            line_idx += 1
 
         return result_srt
 
