@@ -65,10 +65,10 @@ class TestActionsClassHierarchy:
 
 class TestActionsMethods:
     EXPECTED_WINACTION_METHODS = {
-        '_reset', 'set_djs_timeout', 'delete_process', 'import_sub_fun',
+        '_reset', 'set_djs_timeout', 'delete_process',
         'set_translate_type', 'set_subtitle_type', 'shound_translate', 'check_tts',
         'check_reccogn', 'check_output', 'check_name_length', 'check_start',
-        'show_xxl_select', 'show_cpp_select', 'recogn_type_change', 'model_type_change',
+        'show_xxl_select', 'recogn_type_change', 'model_type_change',
         'tts_type_change', 'set_voice_role',
         'create_btns', 'retry', 'add_process_btn', 'set_process_btn_text',
         'update_status', 'update_data', '_check_all_done',
@@ -80,7 +80,7 @@ class TestActionsMethods:
         'get_mp4', 'get_save_dir', 'get_background', 'change_proxy',
         '_test_proxy', 'proxy_alert', 'clearcache', '_clean_dir',
         'about', 'check_cuda', 'check_voice_autorate', 'check_video_autorate',
-        'check_txt', 'cuda_isok', 'listen_voice_fun', 'show_listen_btn',
+        'cuda_isok', 'listen_voice_fun', 'show_listen_btn',
         'check_name', 'lawalert', 'open_url',
     }
 
