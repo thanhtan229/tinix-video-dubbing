@@ -21,28 +21,30 @@ Updated: 2026-10-28
 - `tests/test_custom_api_url.py` and `tests/test_winform_split.py` are excluded: they import modules that do not exist upstream.
 - OCR and reconciler tests: 35 passed.
 - Main window constructs offscreen; recognition mode (3 items) and erase mode (4 items) present with defaults.
-- Not run: live provider calls (Gemini, Edge-TTS, Google Translate); hybrid recognition end-to-end.
+- Gemini live check with the configured key and model `gemini-2.5-flash-lite`: model list returned 60 models; a short generate call returned `OK`. The key itself was not printed.
+- Hybrid components run end-to-end on a synthetic clip (`hybrid_test.mp4`: video from `sub.mp4`, audio from the Piper WAV, subtitles burned in). Whisper (`large-v3-turbo`, CPU) produced one segment, `hello world  second line`. OCR produced `Hello world` and `C Second line` (a stray `C` artifact). `align_and_reconcile_transcripts` merged them into one entry using the Whisper text. No LLM step was run.
+- Not run: Edge-TTS and Google Translate live calls.
 
 ## Known gaps
 
 - `videotrans/styles/style.qss` takes upstream's version; local styling for the new controls is not carried over.
 - The 260 new Vietnamese strings were written by the agent and have not been reviewed by a native speaker.
-- Hybrid mode: OCR failures are reported in the status line and the run continues with Whisper output. Not exercised end-to-end.
+- Hybrid mode: OCR failures are reported in the status line and the run continues with Whisper output.
+- Hybrid output quality: reconciliation kept the Whisper text (lowercase, no punctuation, two lines merged) and the OCR stray `C` was not filtered. The hybrid benefit is not yet demonstrated on this clip.
 
 ## Blockers and notes
 
 - Edge-TTS returned HTTP 403 and Google Translate Free returned HTTP 429 earlier; these providers remain unverified.
 - Set `--target_language_code` for TTS tests. Set `PYTHONUTF8=1` on this Windows environment for CLI output with Vietnamese text.
-- `models/` is empty, so no faster-whisper model is available locally.
+- `models/models--mobiuslabsgmbh--faster-whisper-large-v3-turbo` (1.6 GB) was downloaded by the app during the hybrid check. `models/` is git-ignored.
 - Local `origin/*` refs still hold upstream history containing the removed large files. They are local-only and not pushed.
 - Another workspace holds branch `fix/ocr-pipeline-reviewed-20261028` (worktree under `C:/Users/Admin/.paseo/worktrees/013oxf38/ocr-review-fix`). It was not touched.
 
 ## Recommended next steps
 
-1. Download a faster-whisper model and run a real hybrid recognition job on a hardsubbed clip.
-2. Test the Gemini key flow against the live API when a key is available.
-3. Transcribe the Piper output and compare it with the source SRT.
-4. Review the new Vietnamese strings with a native speaker.
+1. Improve the hybrid reconciliation: keep the OCR text when Whisper merges lines, and filter single-character OCR artifacts.
+2. Run the hybrid check on a real hardsubbed video with natural speech, not the synthetic clip.
+3. Review the new Vietnamese strings with a native speaker.
 
 ## References
 
