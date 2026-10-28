@@ -1,7 +1,9 @@
 
 
 def openwin():
-    from videotrans.configure.contants import LISTEN_TEXT
+    from videotrans.winform import get_cls
+    from pathlib import Path
+    from videotrans.configure.constants import LISTEN_TEXT
     from PySide6 import QtWidgets
     from videotrans.configure.config import tr,app_cfg, params
     from videotrans.configure import config
@@ -18,12 +20,13 @@ def openwin():
         url = winobj.api_url.text().strip()
         if not url.startswith('http'):
             url = 'http://' + url
-        extra = winobj.extra.text()
+        extra = winobj.extra.text().strip()
         role = winobj.voice_role.toPlainText().strip()
 
         params["ttsapi_url"] = url
         params["ttsapi_extra"] = extra
         params["ttsapi_voice_role"] = role
+        params.save()
         winobj.test.setText(tr("Testing..."))
         from videotrans import tts
         import time
@@ -41,7 +44,7 @@ def openwin():
         url = winobj.api_url.text().strip()
         if not url.startswith('http'):
             url = 'http://' + url
-        extra = winobj.extra.text()
+        extra = winobj.extra.text().strip()
         role = winobj.voice_role.toPlainText().strip().replace('\n', '')
         params["ttsapi_url"] = url
         params["ttsapi_extra"] = extra
@@ -49,9 +52,8 @@ def openwin():
         params.save()
         winobj.close()
 
-    from videotrans.component.set_form import TtsapiForm
-    winobj = TtsapiForm()
-    app_cfg.child_forms['ttsapi'] = winobj
+
+    winobj = get_cls(Path(__file__).stem)()
     if params["ttsapi_url"]:
         winobj.api_url.setText(str(params["ttsapi_url"]))
     if params["ttsapi_voice_role"]:
@@ -63,4 +65,4 @@ def openwin():
 
     winobj.save.clicked.connect(save)
     winobj.test.clicked.connect(test)
-    winobj.show()
+    return winobj

@@ -12,13 +12,15 @@ from videotrans.task._base import BaseTask
 from videotrans.task.taskcfg import TaskCfgTTS, SrtItem
 import asyncio
 
+from videotrans.tts import SUPPORT_VOLUME
+from videotrans.util.help_misc import vail_file
 
 """
 仅配音任务：对应 批量为字幕配音 面板
 """
 
 
-@dataclass
+@dataclass(repr=False)
 class DubbingSrt(BaseTask):
     cfg: TaskCfgTTS = field(default_factory=TaskCfgTTS, repr=False)
     out_ext: str = "wav"
@@ -30,9 +32,6 @@ class DubbingSrt(BaseTask):
     output_folder:str=None
     # 多角色配音时直接使用该字幕信息
     subs: List = field(default_factory=list, repr=False)
-
-    def __repr__(self):        
-        return f'[DubbingSrt]语音合成: {self.out_ext=},{self.is_multi_role=}\n{self.cfg}'
 
     def __post_init__(self):
         super().__post_init__()
@@ -56,7 +55,8 @@ class DubbingSrt(BaseTask):
         self._tts()
 
     # 字幕可能是gbk gb2312 等编码，需转为 utf-8
-    def _convert_to_utf8_if_needed(self, file_path: str) -> str:
+    @staticmethod
+    def _convert_to_utf8_if_needed(file_path: str) -> str:
         try:
             # 1. 尝试以 UTF-8 编码打开并完全读取文件，检查其有效性
             # 'strict' 是默认错误处理方式，遇到无法解码的字节会抛出 UnicodeDecodeError
@@ -260,7 +260,7 @@ class DubbingSrt(BaseTask):
         )
         self.queue_tts = rate_inst.run()
         volume = self.cfg.volume.strip()
-        if volume != '+0%':
+        if self.cfg.tts_type not in SUPPORT_VOLUME and volume != '+0%' and vail_file(self.cfg.target_wav):
             try:
                 volume = 1 + float(volume.replace('%', '')) / 100
                 tmp_name = self.cfg.cache_folder + f'/volume-{volume}-{Path(self.cfg.target_wav).name}'
@@ -272,7 +272,7 @@ class DubbingSrt(BaseTask):
         if self._exit(): return
         from videotrans.util.help_ffmpeg import runffmpeg, remove_silence_wav
         if Path(self.cfg.target_wav).is_file():
-            # 移除末尾静音
+            # 只移除末尾静音
             remove_silence_wav(self.cfg.target_wav, rm_start=False)
             target_dir=self.cfg.target_dir if not self.output_folder else self.output_folder
             _output= f'{target_dir}/{self.cfg.noextname}.{self.out_ext}'

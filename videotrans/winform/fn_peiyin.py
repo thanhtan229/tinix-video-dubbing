@@ -2,13 +2,14 @@
 
 
 def openwin():
-
+    from videotrans.translator import LANGNAME_DICT
+    from videotrans.winform import get_cls
     from videotrans.util.help_misc import show_error
     from videotrans.util.help_role import role_menu
     from typing import List
     from videotrans.task.taskcfg import InputFile
     from datetime import datetime
-    from videotrans.configure.contants import LISTEN_TEXT,EDGE_LANGUANGES_CODE
+    from videotrans.configure.constants import LISTEN_TEXT
     import re,time
     import json
     from pathlib import Path
@@ -19,13 +20,14 @@ def openwin():
     from videotrans.configure import config
     from videotrans.task.taskcfg import TaskCfgTTS
     from videotrans import translator, tts
-    from videotrans.component.set_form import Peiyinform
+
 
 
     EDGE_LANGUANGES_DICT = {}
+    for k, v in LANGNAME_DICT.items():
+        if k != 'auto':
+            EDGE_LANGUANGES_DICT[k]=v
 
-    for code in EDGE_LANGUANGES_CODE:
-        EDGE_LANGUANGES_DICT[code]=tr(code)
     RESULT_DIR = HOME_DIR + "/tts"
     Path(RESULT_DIR).mkdir(parents=True, exist_ok=True)
     uuid_list = list()
@@ -154,8 +156,9 @@ def openwin():
         if language == '-' or role in ['No', '-', '']:
             return show_error(tr('yuyanjuesebixuan'))
 
-        if tts.is_input_api(tts_type=tts_type) is not True:
-            return False
+        _rs=tts.is_input_api(tts_type=tts_type)
+        if isinstance(_rs,str):
+            return show_error(_rs)
 
         # 语言是否支持
         if tts_type not in  [tts.EDGE_TTS,tts.OMNIVOICE_TTS,tts.G_TTS]:
@@ -255,9 +258,6 @@ def openwin():
         uuid_list = list()
 
     def getlangnamelist(tts_type=0):
-        if tts_type not in [tts.EDGE_TTS,tts.OMNIVOICE_TTS,tts.G_TTS]:
-            return   list(translator.LANGNAME_DICT.values())
-
         return  list(EDGE_LANGUANGES_DICT.values())
 
     # tts类型改变
@@ -278,12 +278,18 @@ def openwin():
             winobj.loglabel.setText(is_allow_lang_res if is_allow_lang_res is not True else '')
 
         role_list = role_menu(type, code)
+        _origin_role=winobj.hecheng_role.currentText()
         winobj.hecheng_role.clear()
         if "clone" in role_list:
             role_list.remove('clone')
         winobj.hecheng_role.addItems(role_list)
-        if type not in [tts.EDGE_TTS,tts.OMNIVOICE_TTS,tts.G_TTS] and tts.is_input_api(tts_type=type) is not True:
-            return False
+        if _origin_role and _origin_role in role_list:
+            winobj.hecheng_role.setCurrentText(_origin_role)
+        _rs=tts.is_input_api(tts_type=type)
+        if isinstance(_rs,str):
+            return show_error(_rs)
+        if type==tts.AUDIOCPP_TTS:
+            winobj.loglabel.setText(tr('toggle audiocpp model'))
 
     # 合成语言变化，需要获取到角色
     def hecheng_language_fun(t):
@@ -316,11 +322,11 @@ def openwin():
         winobj.hecheng_role.addItems(role_list)
 
     def opendir_fn():
-        nonlocal RESULT_DIR
-        if len(winobj.hecheng_importbtn.filelist) > 0 and winobj.save_to_srt.isChecked():
-            RESULT_DIR = Path(winobj.hecheng_importbtn.filelist[0]).parent.as_posix()
-        else:
-            RESULT_DIR = HOME_DIR + "/tts"
+        # nonlocal RESULT_DIR
+        # if len(winobj.hecheng_importbtn.filelist) > 0 and winobj.save_to_srt.isChecked():
+        #     RESULT_DIR = Path(winobj.hecheng_importbtn.filelist[0]).parent.as_posix()
+        # else:
+        #     RESULT_DIR = HOME_DIR + "/tts"
         QDesktopServices.openUrl(QUrl.fromLocalFile(RESULT_DIR))
 
     def show_detail_error():
@@ -342,9 +348,7 @@ def openwin():
         return True
 
 
-    winobj = Peiyinform()
-    app_cfg.child_forms['fn_peiyin'] = winobj
-
+    winobj = get_cls(Path(__file__).stem)()
     def _bind():
         from videotrans.component.component import PeiyinDropButton
         winobj.hecheng_importbtn = PeiyinDropButton(tr('Import text to be translated from a file..'))

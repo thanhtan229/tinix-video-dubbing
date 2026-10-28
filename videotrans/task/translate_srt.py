@@ -15,7 +15,7 @@ from videotrans.translator import run
 """
 
 
-@dataclass
+@dataclass(repr=False)
 class TranslateSrt(BaseTask):
     cfg: TaskCfgSTS = field(default_factory=TaskCfgSTS, repr=False)
     # 输出格式，例如单语字幕 双语字幕等。
@@ -23,10 +23,6 @@ class TranslateSrt(BaseTask):
     # 固定应该翻译
     should_trans: bool = True
     
-    def __repr__(self):        
-        _format=["单语字幕","双语(目标语言在上)","双语(目标语言在下)"]
-        return f'[TranslateSrt]翻译字幕: OutputFormat={_format[self.out_format]}\n{self.cfg}'
-
     def __post_init__(self):
         super().__post_init__()
         # 存放目标文件夹
@@ -61,9 +57,10 @@ class TranslateSrt(BaseTask):
 
         if self._exit(): return
         raw_subtitles = self.check_target_sub(source_sub_list, raw_subtitles)
+
         for it in raw_subtitles:
-            it['text']=it['text'].strip('...')
-        
+            it['text']=it['text'].strip().strip('...').strip('…').strip()
+
         # 单语字幕
         if self.out_format == 0:
             self._save_srt_target(raw_subtitles, self.cfg.target_sub)

@@ -3,6 +3,7 @@ import asyncio
 import sys
 import os
 
+from videotrans.translator import LANGNAME_DICT
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 from PySide6.QtCore import QEvent, QTimer, Qt
@@ -10,19 +11,17 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMainWindow
 from videotrans.configure import config
 config.init_run()
-from videotrans.configure.config import tr, params, settings, app_cfg, logger, ROOT_DIR
+from videotrans.configure.config import tr, params, settings, app_cfg, logger, ROOT_DIR,REDUBB_STATUS_FILE, IPC_STATUS_FILE
 from videotrans import VERSION
 from videotrans.util.checkgpu import AiLoaderThread
 from videotrans.ui.en import Ui_MainWindow
 from videotrans.task.simple_runnable_qt import run_in_threadpool
 
 from videotrans.mainwin._bind_signals import BindSignalsMixin
-from videotrans.mainwin._winform import WinformMixin
 from videotrans.mainwin._lifecycle import LifecycleMixin
 from videotrans.task.job import start_thread
 
-class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui_MainWindow):
-
+class MainWindow(BindSignalsMixin, LifecycleMixin, QMainWindow, Ui_MainWindow):
 
     def __init__(self, parent=None, width=1400, height=700,callback=None,screen_size=None):
         super().__init__(parent)
@@ -44,7 +43,6 @@ class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui
         self.setWindowIcon(QIcon(f"{ROOT_DIR}/videotrans/styles/icon.ico"))
         self.rawtitle = f"Tinix Video Dubbing {VERSION} - Lồng Tiếng & Dịch Video AI"
         self.setWindowTitle(self.rawtitle)
-        self.embedded_widgets = {}
 
         self.moshi = {
             "biaozhun": self.action_biaozhun,
@@ -64,12 +62,13 @@ class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui
         self.callback('import tts ...')
         from videotrans import tts
         self.callback('import translate ...')
-        from videotrans.translator import TRANSLASTE_NAME_LIST,LANGNAME_DICT,get_code
+        from videotrans.translator import TRANSLASTE_NAME_LIST,get_code
         self.callback('Get cache  ...')
-        self.languagename = list(LANGNAME_DICT.values())
+
+        self.languagename=list(LANGNAME_DICT.values())
         self.translate_type.addItems(TRANSLASTE_NAME_LIST)
         self.source_language.addItems(self.languagename)
-        self.target_language.addItems(["-"] + self.languagename)
+        self.target_language.addItems(["-"] + self.languagename[:-1])
 
         self.tts_type.addItems(tts.TTS_NAME_LIST)
         self.recogn_type.addItems(recognition.RECOGN_NAME_LIST)
@@ -168,7 +167,7 @@ class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui
         self.nums_diariz.setCurrentIndex(int(params.get('nums_diariz', 0)))
         self.is_separate.setChecked(bool(params.get('is_separate', False)))
         self.embed_bgm.setChecked(bool(params.get('embed_bgm', True)))
-        self.rephrase.setCurrentIndex(int(params.get('rephrase', 0)))
+        self.rephrase.setChecked(bool(params.get('rephrase', False)))
         self.remove_noise.setChecked(bool(params.get('remove_noise')))
         self.copysrt_rawvideo.setChecked(bool(params.get('copysrt_rawvideo', False)))
         self.bgmvolume.setText(str(settings.get('backaudio_volume', 0.8)))
@@ -190,27 +189,34 @@ class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui
                 self.voice_role.setCurrentText(_role)
         self.callback('show main window ...')
         self.show()
-        run_in_threadpool(self._daemon)
         QTimer.singleShot(10,self._bind_signal)
+        run_in_threadpool(self._daemon)
 
 
-    def _daemon(self):
+    @staticmethod
+    def _daemon():
         from videotrans.util.help_ffmpeg import check_hw_on_start
         from videotrans.util.help_misc import check_new_version, is_connect_hf
-        check_hw_on_start(force=True)
         check_new_version()
         is_connect_hf()
+        check_hw_on_start(force=True)
 
     def _start_workers(self, status):
         if status == 'end':
             self.worker_threads = start_thread()
             self.startbtn.setDisabled(False)
             self.startbtn.setText(tr("Start"))
+            try:
+                Path(REDUBB_STATUS_FILE).unlink(missing_ok=True)
+                Path(IPC_STATUS_FILE).unlink(missing_ok=True)
+            except:
+                pass
         else:
             from videotrans.util.help_misc import show_error
             show_error(status)
 
-    def checkbox_state_changed(self, state):
+    @staticmethod
+    def checkbox_state_changed(state):
         if state:
             settings['aisendsrt'] = True
         else:
@@ -223,75 +229,3 @@ class MainWindow(BindSignalsMixin, WinformMixin, LifecycleMixin, QMainWindow, Ui
             if self.isActiveWindow():
                 self.aisendsrt.setChecked(settings.get('aisendsrt'))
 
-    def switch_main_tab(self, tab_index: int):
-        """
-        Switch between all 7 tabs directly inside the main window stacked widget (Zero popups!).
-        0: [ 01 ] Full Video Dubbing (Standard mode)
-        1: [ 02 ] Extract Subtitles (Tiqu mode)
-        2: [ 03 ] Speech to text (fn_recogn)
-        3: [ 04 ] Text to speech (fn_peiyin)
-        4: [ 05 ] Translate SRT (fn_fanyisrt)
-        5: [ 06 ] Multi-speaker dubbing (fn_peiyinrole)
-        6: [ 07 ] Merge Video/Audio/SRT (fn_vas)
-        """
-        if hasattr(self, 'tab_button_group'):
-            btn = self.tab_button_group.button(tab_index)
-            if btn and not btn.isChecked():
-                btn.setChecked(True)
-
-        actions = [
-            self.action_biaozhun,
-            self.action_tiquzimu,
-            self.action_yuyinshibie,
-            self.action_yuyinhecheng,
-            self.action_fanyi,
-            self.actionsrtmultirole,
-            self.action_yingyinhebing
-        ]
-        for i, act in enumerate(actions):
-            act.blockSignals(True)
-            act.setChecked(bool(i == tab_index))
-            act.blockSignals(False)
-
-        if tab_index == 0:
-            self.central_stack.setCurrentIndex(0)
-            if self.win_action:
-                self.win_action.set_biaozhun()
-            return
-        elif tab_index == 1:
-            self.central_stack.setCurrentIndex(0)
-            if self.win_action:
-                self.win_action.set_tiquzimu()
-            return
-
-        tool_map = {
-            2: "fn_recogn",
-            3: "fn_peiyin",
-            4: "fn_fanyisrt",
-            5: "fn_peiyinrole",
-            6: "fn_vas"
-        }
-        mod_name = tool_map.get(tab_index)
-        if not mod_name:
-            return
-
-        widget = self.embedded_widgets.get(mod_name)
-        if not widget:
-            from videotrans import winform
-            tool_module = winform.get_win(mod_name)
-            widget = tool_module.openwin()
-            if widget:
-                widget.setWindowFlags(Qt.Widget)
-                self.embedded_widgets[mod_name] = widget
-                self.central_stack.addWidget(widget)
-
-        if widget:
-            if hasattr(widget, 'update_ui'):
-                try:
-                    widget.update_ui()
-                except Exception:
-                    pass
-            self.central_stack.setCurrentWidget(widget)
-
-    
-    

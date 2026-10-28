@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
 import json
+
 # 固定不变:M2M100 翻译渠道,
-_LANGUAGE_M2M100 = {
+LANGUAGE_M2M100 = {
     "af": "__af__",
     "am": "__am__",
     "ar": "__ar__",
@@ -106,7 +107,7 @@ _LANGUAGE_M2M100 = {
     "zu": "__zu__"
 }
 # 固定不变:小红书 TTS3 渠道 
-_LANGUAGE_FIRERED3 = {
+LANGUAGE_FIRERED3 = {
     "ar": "Arabic",
     "yue": "Cantonese",
     "zh": "Chinese",
@@ -132,130 +133,194 @@ _LANGUAGE_FIRERED3 = {
     "fi": "Finnish",
     "vi": "Vietnamese"
 }
-# 固定不变:edge-tts/omnivoice 可用的语言代码列表：
-EDGE_LANGUANGES_CODE = [
-        "zh-cn",
-        "zh-tw",
-        "yue",
-        "en",
-        "fr",
-        "de",
-        "ja",
-        "ko",
-        "ru",
-        "es",
-        "th",
-        "it",
-        "pt",
-        "vi",
-        "ar",
-        "tr",
-        "hi",
-        "hu",
-        "uk",
-        "id",
-        "ms",
-        "kk",
-        "cs",
-        "pl",
-        "nl",
-        "sv",
-        "he",
-        "bn",
-        "fil",
-
-        "af",
-        "sq",
-        "am",
-        "az",
-        "bs",
-        "bg",
-        "my",
-        "ca",
-        "hr",
-        "da",
-        "et",
-        "fi",
-        "gl",
-        "ka",
-        "el",
-        "gu",
-        "is",
-        "iu",
-        "ga",
-        "jv",
-        "kn",
-        "km",
-        "lo",
-        "lv",
-        "lt",
-        "mk",
-        "ml",
-        "mt",
-        "mr",
-        "mn",
-        "ne",
-        "nb",
-        "ps",
-        "fa",
-
-        "ro",
-        "sr",
-        "si",
-        "sk",
-        "sl",
-        "so",
-        "su",
-        "sw",
-        "ta",
-        "te",
-        "ur",
-        "uz",
-        "cy",
-        "zu"
-    ]
-
-# ------------配音试听---------------
 # 每增加一个语言，需在此添加对应的试听词
 LISTEN_TEXT = {
     "zh": "你好啊，我亲爱的朋友，希望你的每一天都是美好愉快的！",
-    "bg": "Здравей, скъпи приятелю, надявам се всеки твой ден да е прекрасен и радостен.",
-    "uz": "Salom, aziz do'stim, umid qilamanki, har bir kuningiz ajoyib va ​​quvonchli o'tadi!",
-    "en": "Hello, my dear friend. I hope your every day is beautiful and enjoyable!",
-    "fr": "Bonjour mon cher ami. J'espère que votre quotidien est beau et agréable !",
-    "de": "Hallo mein lieber Freund. Ich hoffe, dass Ihr Tag schön und angenehm ist!",
-    "ja": "こんにちは私の親愛なる友人。 あなたの毎日が美しく楽しいものでありますように！",
-    "ko": "안녕, 내 사랑하는 친구. 당신의 매일이 아름답고 즐겁기를 바랍니다!",
-    "ru": "Привет, мой дорогой друг. Желаю, чтобы каждый твой день был прекрасен и приятен!",
-    "es": "Hola mi querido amigo. ¡Espero que cada día sea hermoso y agradable!",
-    "th": "สวัสดีเพื่อนรัก. ฉันหวังว่าทุกวันของคุณจะสวยงามและสนุกสนาน!",
-    "it": "Ciao caro amico mio. Spero che ogni tuo giorno sia bello e divertente!",
-    "el": "Γεια σου, αγαπητέ μου φίλε. Εύχομαι κάθε σου μέρα να είναι όμορφη και ευχάριστη!",
-    "pt": "Olá meu querido amigo. Espero que todos os seus dias sejam lindos e agradáveis!",
-    "vi": "Xin chào người bạn thân yêu của tôi. Tôi hy vọng mỗi ngày của bạn đều đẹp và thú vị!",
-    "ar": "مرحبا صديقي العزيز. أتمنى أن يكون كل يوم جميلاً وممتعًا!",
-    "tr": "Merhaba sevgili arkadaşım. Umarım her gününüz güzel ve keyifli geçer!",
-    "hi": "नमस्ते मेरे प्यारे दोस्त। मुझे आशा है कि आपका हर दिन सुंदर और आनंददायक हो!!",
-    "hu": "Helló kedves barátom. Remélem minden napod szép és kellemes!",
-    "uk": "Привіт, мій дорогий друже, сподіваюся, ти щодня прекрасна!",
-    "id": "Halo, temanku, semoga kamu cantik setiap hari!",
-    "ms": "Helo, sahabat saya, saya harap anda cantik setiap hari!",
-    "kk": "Сәлеметсіз бе, менің қымбатты досым, сендер күн сайын әдемісің деп үміттенемін!",
-    "cs": "Ahoj, můj drahý příteli, doufám, že jsi každý den krásná!",
-    "pl": "Witam, mój drogi przyjacielu, mam nadzieję, że jesteś piękna każdego dnia!",
-    "nl": "Hallo mijn lieve vriend, ik hoop dat elke dag goed en fijn voor je is!!",
-    "sv": "Hej min kära vän, jag hoppas att varje dag är en bra och trevlig dag för dig!",
-    "he": "שלום, ידידי היקר, אני מקווה שכל יום בחייך יהיה נפלא ומאושר!",
-    "bn": "হ্যালো, আমার প্রিয় বন্ধু, আমি আশা করি আপনার জীবনের প্রতিটি দিন চমৎকার এবং সুখী হোক!",
-    "fil": "Hello, kaibigan ko",
-    "fa": "سلام دوستای گلم امیدوارم هر روز از زندگیتون عالی و شاد باشه.",
-    "ur": "ہیلو پیارے دوست، مجھے امید ہے کہ آپ آج خوش ہوں گے۔",
-    "yue": "你好啊親愛嘅朋友，希望你今日好開心",
-    "ro": "Bună, draga mea prietenă, sper ca fiecare zi a ta să fie minunată și plină de bucurie!",
-    "km": "សួស្តីមិត្តជាទីស្រឡាញ់របស់ខ្ញុំ ខ្ញុំសង្ឃឹមថារាល់ថ្ងៃរបស់អ្នកគឺអស្ចារ្យ និងរីករាយ។!",
-    "nb": "Hallo, min kjære venn, jeg håper hver dag din er fantastisk og gledelig.",
+    "zh-cn": "你好啊，我亲爱的朋友，希望你的每一天都是美好愉快的！",
+    "zh-tw": "你好啊，我親愛的朋友，希望你的每一天都是美好愉快的！",
+    "yue": "你好呀，我親愛嘅朋友，希望你每一日都係美好同愉快嘅！",
+    "en": "Hello, my dear friend, I hope every day of yours is wonderful and joyful!",
+    "fr": "Bonjour, mon cher ami, j'espère que chacune de tes journées sera belle et agréable !",
+    "de": "Hallo, mein lieber Freund, ich hoffe, dass jeder deiner Tage wunderbar und erfreulich ist!",
+    "ja": "こんにちは、親愛なる友よ。あなたの日々がいつも素晴らしく、楽しいものでありますように！",
+    "ko": "안녕, 나의 소중한 친구야. 너의 매일매일이 아름답고 즐겁기를 바라!",
+    "ru": "Привет, мой дорогой друг! Надеюсь, каждый твой день будет прекрасным и радостным!",
+    "es": "¡Hola, mi querido amigo! ¡Espero que cada uno de tus días sea hermoso y agradable!",
+    "th": "สวัสดีเพื่อนรักของฉัน ขอให้ทุกๆ วันของคุณเป็นวันที่สวยงามและมีความสุขนะ!",
+    "it": "Ciao, mio caro amico, spero che ogni tuo giorno sia meraviglioso e piacevole!",
+    "pt": "Olá, meu querido amigo, espero que cada um dos seus dias seja maravilhoso e agradável!",
+    "vi": "Xin chào người bạn thân yêu của tôi, chúc bạn mỗi ngày đều thật tươi đẹp và vui vẻ!",
+    "ar": "مرحبًا يا صديقي العزيز، أتمنى أن يكون كل يوم من أيامك جميلاً وممتعًا!",
+    "tr": "Merhaba sevgili dostum, umarım her günün güzel ve neşeli geçer!",
+    "hi": "नमस्ते, मेरे प्यारे दोस्त, मुझे आशा है कि आपका हर दिन सुंदर और सुखद हो!",
+    "hu": "Szia, kedves barátom! Remélem, minden napod szép és kellemes lesz!",
+    "uk": "Привіт, мій дорогий друже! Сподіваюся, кожен твій день буде прекрасним і радісним!",
+    "id": "Halo, sahabatku tersayang, semoga setiap harimu indah dan menyenangkan!",
+    "ms": "Helo, sahabatku yang dikasihi, semoga setiap hari anda indah dan menyeronokkan!",
+    "kk": "Сәлем, менің қымбатты досым, әр күнің тамаша әрі қуанышты өтсін деп тілеймін!",
+    "cs": "Ahoj, můj drahý příteli, doufám, že každý tvůj den bude krásný a příjemný!",
+    "pl": "Cześć, mój drogi przyjacielu, mam nadzieję, że każdy Twój dzień będzie piękny i radosny!",
+    "nl": "Hallo, mijn beste vriend, ik hoop dat al je dagen mooi en vreugdevol zijn!",
+    "sv": "Hej, min kära vän, jag hoppas att varje dag blir underbar och glädjefylld!",
+    "he": "שלום, חברי היקר, אני מקווה שכל יום שלך יהיה יפה ומהנה!",
+    "bn": "হ্যালো, আমার প্রিয় বন্ধু, আশা করি তোমার প্রতিটি দিন সুন্দর এবং আনন্দময় হোক!",
+    "fil": "Kumusta, aking matalik na kaibigan, sana ang bawat araw mo ay maging maganda at masaya!",
+    "af": "Hallo, my liewe vriend, ek hoop dat elkeen van jou dae mooi en aangenaam sal wees!",
+    "sq": "Përshëndetje, miku im i dashur, shpresoj që çdo ditë e jotja të jetë e bukur dhe e gëzueshme!",
+    "am": "ሰላም፣ ውድ ጓደኛዬ፣ እያንዳንዱ ቀንህ ውብ እና አስደሳች እንዲሆን ተስፋ አደርጋለሁ!",
+    "az": "Salam, əziz dostum, ümid edirəm ki, hər günün gözəl və sevincli keçər!",
+    "bs": "Zdravo, dragi moj prijatelju, nadam se da će ti svaki dan biti lijep i ugodan!",
+    "bg": "Здравей, скъпи приятелю, надявам се всеки твой ден да бъде прекрасен и приятен!",
+    "my": "မင်္ဂလာပါ ချစ်လှစွာသောသူငယ်ချင်း၊ မင်းရဲ့နေ့ရက်တိုင်းဟာ လှပပြီး ပျော်ရွှင်ဖွယ်ကောင်းပါစေလို့ မျှော်လင့်ပါတယ်။",
+    "ca": "Hola, estimat amic, espero que cadascun dels teus dies sigui bonic i agradable!",
+    "hr": "Bok, dragi moj prijatelju, nadam se da će ti svaki dan biti lijep i ugodan!",
+    "da": "Hej, min kære ven, jeg håber, at hver af dine dage er smuk og dejlig!",
+    "et": "Tere, mu kallis sõber, loodan, et iga su päev on ilus ja meeldiv!",
+    "fi": "Hei, rakas ystäväni, toivon että jokainen päiväsi on kaunis ja iloinen!",
+    "gl": "Ola, meu querido amigo, espero que cada un dos teus días sexa fermoso e agradable!",
+    "ka": "გამარჯობა, ჩემო ძვირფასო მეგობარო, იმედი მაქვს, შენი ყოველი დღე ლამაზი და სასიამოვნო იქნება!",
+    "el": "Γεια σου, αγαπημένε μου φίλε, ελπίζω κάθε μέρα σου να είναι όμορφη και ευχάριστη!",
+    "gu": "નમસ્તે, મારા વ્હાલા મિત્ર, આશા છે કે તમારો દરેક દિવસ સુંદર અને આનંદમય રહે!",
+    "is": "Halló, kæri vinur minn, ég vona að hver einasti dagur þinn sé dásamlegur og ánægjulegur!",
+    "iu": "ᐊᐃᓐᖓᐃ, ᓇᒡᓕᒋᔭᕋ ᐱᖃᑎᒐ, ᓂᕆᐅᑉᐳᖓ ᖃᐅᑕᒫᑦ ᐊᓕᐊᓇᐃᑦᑐᒥᒃ ᖁᕕᐊᓇᖅᑐᒥᒡᓗ ᐱᖃᑦᑕᕐᓂᐊᖅᐳᑎᑦ!",
+    "ga": "Dia duit, a chara mo chroí, tá súil agam go mbeidh gach lá agat go hálainn agus taitneamhach!",
+    "jv": "Halo, kanca kinasihku, muga-muga saben dinamu tansah endah lan nyenengake!",
+    "kn": "ನಮಸ್ಕಾರ, ನನ್ನ ಆತ್ಮೀಯ ಗೆಳೆಯ, ನಿನ್ನ ಪ್ರತಿಯೊಂದು ದಿನವೂ ಸುಂದರ ಹಾಗೂ ಸಂತೋಷದಾಯಕವಾಗಿರಲಿ ಎಂದು ಆಶಿಸುತ್ತೇನೆ!",
+    "km": "សួស្តី មិត្តសម្លាញ់របស់ខ្ញុំ សង្ឃឹមថាជារៀងរាល់ថ្ងៃរបស់អ្នកសុទ្ធតែស្រស់ស្អាតនិងពោរពេញដោយភាពរីករាយ!",
+    "lo": "ສະບາຍດີ, ເພື່ອນຮັກຂອງຂ້ອຍ, ຫວັງວ່າທຸກໆມື້ຂອງເຈົ້າຈະສວຍງາມ ແລະ ມີຄວາມສຸກ!",
+    "lv": "Sveiks, mans dārgais draugs! Ceru, ka katra tava diena būs skaista un patīkama!",
+    "lt": "Labas, mano brangus drauge, tikiuosi, kad kiekviena tavo diena bus graži ir maloni!",
+    "mk": "Здраво, драг мој пријателе, се надевам дека секој твој ден ќе биде убав и пријатен!",
+    "ml": "ഹലോ, എൻ്റെ പ്രിയ സുഹൃത്തേ, നിങ്ങളുടെ ഓരോ ദിവസവും മനോഹരവും സന്തോഷകരവുമായിരിക്കട്ടെ എന്ന് ഞാൻ ആശംസിക്കുന്നു!",
+    "mt": "Hello, għażiż ħabib tiegħi, nittama li kull jum tiegħek ikun sabiħ u pjaċevoli!",
+    "mr": "नमस्कार, माझ्या प्रिय मित्रा, तुझा प्रत्येक दिवस सुंदर आणि आनंददायी जावो अशी आशा आहे!",
+    "mn": "Сайн байна уу, хайрт найз минь, өдөр бүр чинь үзэсгэлэнтэй бөгөөд баяр баясгалантай байх болтугай!",
+    "ne": "नमस्ते, मेरो प्यारो साथी, म आशा गर्छु कि तिम्रो हरेक दिन सुन्दर र रमाइलो होस्!",
+    "nb": "Hei, min kjære venn, jeg håper hver dag for deg er vakker og gledelig!",
+    "ps": "سلام، زما ګرانه ملګریه، هیله لرم چې ستا هره ورځ ښکلې او خوندوره وي!",
+    "fa": "سلام، دوست عزیز من، امیدوارم هر روزت زیبا و لذت‌بخش باشد!",
+    "ro": "Bună, dragul meu prieten, sper ca fiecare zi a ta să fie frumoasă și plăcută!",
+    "sr": "Здраво, драги мој пријатељу, надам се да ће ти сваки дан бити леп и пријатан!",
+    "si": "ආයුබෝවන්, මගේ ආදරණීය මිතුරා, ඔබේ සෑම දවසක්ම සුන්දර සහ ප්‍රීතිමත් වේවායි මම ප්‍රාර්ථනා කරමි!",
+    "sk": "Ahoj, môj drahý priateľ, dúfam, že každý tvoj deň bude krásny a príjemný!",
+    "sl": "Živjo, moj dragi prijatelj, upam, da bo vsak tvoj dan lep in prijeten!",
+    "so": "Waad salaamantahay saaxiibkayga qaaliga ahow, waxaan rajaynayaa in maalin kasta oo ka mid ah noloshaadu ay noqoto mid qurux badan oo farxad leh!",
+    "su": "Halo, sobat kuring anu dipikanyaah, mugia unggal dinten anjeun endah tur pikabitaeun!",
+    "sw": "Hujambo, rafiki yangu mpendwa, natumai kila siku yako itakuwa nzuri na ya kupendeza!",
+    "ta": "வணக்கம், என் அன்பு நண்பரே, உங்கள் ஒவ்வொரு நாளும் அழகாகவும் மகிழ்ச்சியாகவும் அமையட்டும்!",
+    "te": "హలో, నా ప్రియమైన మిత్రమా, నీ ప్రతి రోజు అందంగా మరియు ఆహ్లాదకరంగా ఉండాలని ఆశిస్తున్నాను!",
+    "ur": "ہیلو، میرے پیارے دوست، مجھے امید ہے کہ آپ کا ہر دن خوبصورت اور خوشگوار گزرے گا!",
+    "uz": "Salom, mening qadrdon do'stim, har bir kuning go'zal va quvonchli o'tishini tilayman!",
+    "cy": "Helo, fy ffrind annwyl, rwy'n gobeithio bod pob un o'th ddiwrnodau'n hyfryd ac yn bleserus!",
+    "zu": "Sawubona, mngane wami othandekayo, ngithemba ukuthi zonke izinsuku zakho zizoba zinhle futhi zijabulise!"
 }
-
+# 字幕嵌入代码 T 类型
+SUBTITLE_CODE = {
+    "zh": "zho",
+    "zh-cn": "zho",
+    "zh-tw": "zho",
+    "yue": "yue",
+    "en": "eng",
+    "fr": "fra",
+    "de": "deu",
+    "ja": "jpn",
+    "ko": "kor",
+    "ru": "rus",
+    "es": "spa",
+    "th": "tha",
+    "it": "ita",
+    "pt": "por",
+    "vi": "vie",
+    "ar": "ara",
+    "tr": "tur",
+    "hi": "hin",
+    "hu": "hun",
+    "uk": "ukr",
+    "id": "ind",
+    "ms": "msa",
+    "kk": "kaz",
+    "cs": "ces",
+    "pl": "pol",
+    "nl": "nld",
+    "sv": "swe",
+    "he": "heb",
+    "bn": "ben",
+    "fil": "fil",
+    "af": "afr",
+    "sq": "sqi",
+    "am": "amh",
+    "az": "aze",
+    "bs": "bos",
+    "bg": "bul",
+    "my": "mya",
+    "ca": "cat",
+    "hr": "hrv",
+    "da": "dan",
+    "et": "est",
+    "fi": "fin",
+    "gl": "glg",
+    "ka": "kat",
+    "el": "ell",
+    "gu": "guj",
+    "is": "isl",
+    "iu": "iku",
+    "ga": "gle",
+    "jv": "jav",
+    "kn": "kan",
+    "km": "khm",
+    "lo": "lao",
+    "lv": "lav",
+    "lt": "lit",
+    "mk": "mkd",
+    "ml": "mal",
+    "mt": "mlt",
+    "mr": "mar",
+    "mn": "mon",
+    "ne": "nep",
+    "nb": "nob",
+    "ps": "pus",
+    "fa": "fas",
+    "ro": "ron",
+    "sr": "srp",
+    "si": "sin",
+    "sk": "slk",
+    "sl": "slv",
+    "so": "som",
+    "su": "sun",
+    "sw": "swa",
+    "ta": "tam",
+    "te": "tel",
+    "ur": "urd",
+    "uz": "uzb",
+    "cy": "cym",
+    "zu": "zul",
+    "pt-br": "por",
+    "es-419": "spa",
+    "ug": "uig"
+}
+# 字幕嵌入代码，根据 T 类型获取 B类型
+SUBTITLE_CODE_B = {
+    "zho": "chi",
+    "fra": "fre",
+    "deu": "ger",
+    "msa": "may",
+    "ces": "cze",
+    "nld": "dut",
+    "sqi": "alb",
+    "mya": "bur",
+    "kat": "geo",
+    "ell": "gre",
+    "isl": "ice",
+    "mkd": "mac",
+    "fas": "per",
+    "ron": "rum",
+    "slk": "slo",
+    "cym": "wel",
+    "bod": "tib",
+    "eus": "baq",
+    "hye": "arm",
+    "mri": "mao"
+}
 
 # 根据语言代码查找各个翻译渠道对应的 代码list
 # 字幕嵌入代码默认使用  ISO 639-2/T(mp4所需)，MKV视频需使用 ISO 639-2/B 格式 https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes
@@ -272,6 +337,7 @@ LISTEN_TEXT = {
 # 视频翻译中可用的语言代码及不同代码形式
 # 每增加一个语言，需在此添加对应不同渠道所需语言代码形式
 LANG_CODE = {
+    # 主要语言
     "zh-cn": [
         "zh-cn",  # google通道
         "zho",  # 字幕嵌入语言
@@ -282,10 +348,9 @@ LANG_CODE = {
         "zh-Hans",  # 微软翻译
         "Simplified Chinese",  # AI翻译
         "zh",  # 阿里
-        "Chinese",  # qwen-mt qwen-tts qwen-asr
-        "zh"  # m2m100
+        "zh",  # qwen-mt
     ],
-    
+
     "en": [
         "en",
         "eng",
@@ -296,12 +361,9 @@ LANG_CODE = {
         "en",
         "English",
         "en",
-        "English",
-        "en"  # m2m100
+        "en",
     ],
-    
-    
-        
+
     "ja": [
         "ja",
         "jpn",
@@ -312,8 +374,7 @@ LANG_CODE = {
         "ja",
         "Japanese",
         "ja",
-        "Japanese",
-        "ja"  # m2m100
+        "ja",
     ],
     "ko": [
         "ko",
@@ -325,8 +386,7 @@ LANG_CODE = {
         "ko",
         "Korean",
         "ko",
-        "Korean",
-        "ko"  # m2m100
+        "ko",
     ],
     "zh-tw": [
         "zh-tw",
@@ -338,22 +398,21 @@ LANG_CODE = {
         "zh-Hant",
         "Traditional Chinese",
         "zh-tw",
-        "Traditional Chinese",
-        "zh"  # m2m100
+        "zh_tw",
     ],
     "yue": [
         "yue",  # google通道
         "chi",  # 字幕嵌入语言
         "yue",  # 百度通道
         "YUE",  # deepl deeplx通道
-        "yue",  # 腾讯通道
+        "zh-HK",  # 腾讯通道
         "No",  # OTT通道
         "yue",  # 微软翻译
         "Cantonese",  # AI翻译
         "yue",  # 阿里
-        "Cantonese",
-        "zh"  # m2m100
+        "yue",
     ],
+    # 欧洲
     "fr": [
         "fr",
         "fra",
@@ -364,10 +423,9 @@ LANG_CODE = {
         "fr",
         "French",
         "fr",
-        "French",
-        "fr"  # m2m100
+        "fr",
     ],
-    
+
     "de": [
         "de",
         "deu",
@@ -378,8 +436,7 @@ LANG_CODE = {
         "de",
         "German",
         "de",
-        "German",
-        "de"  # m2m100
+        "de",
     ],
     "es": [
         "es",
@@ -391,21 +448,19 @@ LANG_CODE = {
         "es",
         "Spanish",
         "es",
-        "Spanish",
-        "es"  # m2m100
+        "es",
     ],
     "es-419": [
-        "es",#google
+        "es",  # google
         "spa",
-        "spa",#baidu
-        "ES-419",#deepl
-        "es",#腾讯
-        "es",#ott
-        "es",#微软
-        "Spanish",#AI
-        "es",#阿里机器
-        "Spanish",#qwenmt
-        "es"  # m2m100
+        "spa",  # baidu
+        "ES-419",  # deepl
+        "es",  # 腾讯
+        "es",  # ott
+        "es",  # 微软
+        "Spanish",  # AI
+        "es",  # 阿里机器
+        "es",  # qwenmt
     ],
     "pt": [
         "pt-PT",  # pt-PT
@@ -417,21 +472,19 @@ LANG_CODE = {
         "pt",
         "Portuguese",
         "pt",
-        "Portuguese",
-        "pt"  # m2m100
+        "pt",
     ],
     "pt-br": [
         "pt",  # pt-PT
-        "por",#字幕
-        "pot",#百度
-        "PT-BR",#deepl
-        "pt",#腾讯
-        "pt",#ott
-        "pt",#微软
-        "Portuguese (Brazilian)",#AI
-        "pt",#阿里
-        "Portuguese (Brazilian)",#qwen-mt
-        "pt"  # m2m100
+        "por",  # 字幕
+        "pot",  # 百度
+        "PT-BR",  # deepl
+        "pt",  # 腾讯
+        "pt",  # ott
+        "pt",  # 微软
+        "Portuguese (Brazilian)",  # AI
+        "pt",  # 阿里
+        "pt",  # qwen-mt
     ],
     "it": [
         "it",
@@ -443,8 +496,7 @@ LANG_CODE = {
         "it",
         "Italian",
         "it",
-        "Italian",
-        "it"  # m2m100
+        "it",
     ],
     "ru": [
         "ru",
@@ -456,100 +508,92 @@ LANG_CODE = {
         "ru",
         "Russian",
         "ru",
-        "Russian",
-        "ru"  # m2m100
+        "ru",
     ],
     "hu": [
         "hu",
         "hun",
         "hu",
         "HU",
-        "hu",
+        "No",
         "hu",
         "hu",
         "Hungarian",
         "hu",
-        "Hungarian",
-        "hu"  # m2m100
+        "hu",
     ],
     "pl": [
         "pl",
         "pol",
         "pl",
         "PL",
-        "pl",
+        "No",
         "pl",
         "pl",
         "Polish",
         "pl",
-        "Polish",
-        "pl"  # m2m100
+        "pl",
     ],
     "nl": [
         "nl",  # google通道
         "nld",  # 字幕嵌入语言
         "nl",  # 百度通道
         "NL",  # deepl deeplx通道
-        "nl",  # 腾讯通道
+        "No",  # 腾讯通道
         "nl",  # OTT通道
         "nl",  # 微软翻译
         "Dutch",  # AI翻译
         "nl",
-        "Dutch",
-        "nl"  # m2m100
+        "nl",
     ],
     "sv": [
         "sv",  # google通道
         "swe",  # 字幕嵌入语言
         "swe",  # 百度通道
         "SV",  # deepl deeplx通道
-        "sv",  # 腾讯通道
+        "No",  # 腾讯通道
         "sv",  # OTT通道
         "sv",  # 微软翻译
         "Swedish",  # AI翻译
         "sv",
-        "Swedish",
-        "sv"  # m2m100
+        "sv",
     ],
-    
+
     "uk": [
         "uk",
         "ukr",
         "ukr",  # 百度
         "UK",  # deepl
-        "uk",  # 腾讯
+        "No",  # 腾讯
         "uk",  # ott
         "uk",  # 微软
         "Ukrainian",
         "No",
-        "Ukrainian",
-        "uk"  # m2m100
+        "uk",
     ],
     "cs": [
         "cs",
         "ces",
         "cs",
         "CS",
-        "cs",
+        "No",
         "cs",
         "cs",
         "Czech",
         "cs",
-        "Czech",
-        "cs"  # m2m100
+        "cs",
     ],
     "el": [
         "el",  # google
         "ell",  # subtitle embed (ISO 639-2/T)
         "el",  # baidu
         "EL",  # deepl / deeplx
-        "el",  # tencent
+        "No",  # tencent
         "el",  # OTT
         "el",  # microsoft / bing
         "Greek",  # AI (LLM)
         "el",  # alibaba
-        "Greek",  # qwen-mt / qwen-tts / qwen-asr
-        "el"  # m2m100
+        "el",  # qwen-mt
     ],
     "nb": [
         "no",  # google
@@ -561,12 +605,35 @@ LANG_CODE = {
         "nb",  # microsoft / bing
         "Norwegian Bokmål",  # AI (LLM) 书面挪威语
         "no",  # alibaba
-        "Norwegian Bokmål",  # qwen-mt / qwen-tts / qwen-asr
-        "no"  # m2m100
+        "nb",  # qwen-mt
     ],
-    
-    
-    
+    "ro": [
+        "ro",  # google通道
+        "ron",  # 字幕嵌入语言
+        "rom",  # 百度通道
+        "RO",  # deepl deeplx通道
+        "No",  # 腾讯通道
+        "No",  # OTT通道
+        "ro",  # 微软翻译
+        "Romanian",  # AI翻译
+        "ro",  # 阿里
+        "ro",  # qwen-mt
+    ],
+    "bg": ['bg', 'bul', 'bul', 'BG', 'No', 'No', 'bg', 'Bulgarian', 'bg', 'bg'],
+    "fi": [
+        "fi",  # google通道
+        "fin",  # 字幕嵌入语言
+        "fin",  # 百度通道
+        "FI",  # deepl deeplx通道
+        "No",  # 腾讯通道
+        "fi",  # OTT通道
+        "fi",  # 微软翻译
+        "Finnish",  # AI翻译
+        "fi",  # 阿里
+        "fi",  # qwen-tts
+    ],
+
+    # 东南亚
     "vi": [
         "vi",
         "vie",
@@ -577,8 +644,7 @@ LANG_CODE = {
         "vi",
         "Vietnamese",
         "vi",
-        "Vietnamese",
-        "vi"  # m2m100
+        "vi",
     ],
     "th": [
         "th",
@@ -590,8 +656,7 @@ LANG_CODE = {
         "th",
         "Thai",
         "th",
-        "Thai",
-        "th"  # m2m100
+        "th",
     ],
     "id": [
         "id",
@@ -603,8 +668,7 @@ LANG_CODE = {
         "id",
         "Indonesian",
         "id",
-        "Indonesian",
-        "id"  # m2m100
+        "id",
     ],
     "ms": [
         "ms",
@@ -616,64 +680,94 @@ LANG_CODE = {
         "ms",
         "Malay",
         "ms",
-        "Malay",
-        "ms"  # m2m100
+        "ms",
     ],
     "fil": [
         "tl",  # google通道
         "fil",  # 字幕嵌入语言
         "fil",  # 百度通道
         "No",  # deepl deeplx通道
-        "fil",  # 腾讯通道
+        "No",  # 腾讯通道
         "No",  # OTT通道
         "fil",  # 微软翻译
         "Filipino",  # AI翻译
         "fil",  # 阿里
-        "Filipino",
-        "No"
+        "No",
     ],
     "km": [
         "km",  # google通道
         "khm",  # 字幕嵌入语言
         "km",  # 百度通道
         "No",  # deepl deeplx通道
-        "km",  # 腾讯通道
+        "No",  # 腾讯通道
         "No",  # OTT通道
         "km",  # 微软翻译
         "Khmer",  # AI翻译
         "km",  # 阿里
-        "Khmer",
-        "km"  # m2m100
+        "km",
     ],
-    
+    "lo": [
+        "lo",  # google通道
+        "lao",  # 字幕嵌入语言
+        "lao",  # 百度通道
+        "No",  # deepl deeplx通道
+        "No",  # 腾讯通道
+        "No",  # OTT通道
+        "lo",  # 微软翻译
+        "Lao",  # AI翻译
+        "lo",  # 阿里
+        "lo",  # qwen-tts
+    ],
+    "my": [
+        "my",  # google通道
+        "mya",  # 字幕嵌入语言
+        "bur",  # 百度通道
+        "MY",  # deepl deeplx通道
+        "No",  # 腾讯通道
+        "No",  # OTT通道
+        "my",  # 微软翻译
+        "Burmese",  # AI翻译
+        "my",  # 阿里
+        "my",  # qwen-tts
+    ],
+    # 南亚
     "hi": [
         "hi",
         "hin",
         "hi",
         "HI",
-        "hi",
+        "No",
         "hi",
         "hi",
         "Hindi",
         "hi",
-        "Hindi",
-        "hi"  # m2m100
+        "hi",
     ],
     "ur": [
         "ur",  # google通道
         "urd",  # 字幕嵌入语言
         "ur",  # 百度通道
         "UR",  # deepl deeplx通道
-        "ur",  # 腾讯通道
+        "No",  # 腾讯通道
         "No",  # OTT通道
         "ur",  # 微软翻译
         "Urdu",  # AI翻译
         "ur",  # 阿里
-        "Urdu",
-        "ur"  # m2m100
+        "ur",
     ],
-    
-    
+    "bn": [
+        "bn",  # google通道
+        "ben",  # 字幕嵌入语言
+        "ben",  # 百度通道
+        "BN",  # deepl deeplx通道
+        "No",  # 腾讯通道
+        "No",  # OTT通道
+        "bn",  # 微软翻译
+        "Bengali",  # AI翻译,
+        "bn",
+        "bn",
+    ],
+    # 中东 中亚
     "ar": [
         "ar",
         "are",
@@ -684,8 +778,7 @@ LANG_CODE = {
         "ar",
         "Arabic",
         "ar",
-        "Arabic",
-        "ar"  # m2m100
+        "ar",
     ],
     "tr": [
         "tr",
@@ -697,107 +790,95 @@ LANG_CODE = {
         "tr",
         "Turkish",
         "tr",
-        "Turkish",
-        "tr"  # m2m100
+        "tr",
     ],
     "fa": [
         "fa",  # google通道
         "fas",  # 字幕嵌入语言
         "per",  # 百度通道
         "FA",  # deepl deeplx通道
-        "fa",  # 腾讯通道
+        "No",  # 腾讯通道
         "No",  # OTT通道
         "fa",  # 微软翻译
         "Persian",  # AI翻译
         "fa",  # 阿里
-        "Western Persian",
-        "fa"  # m2m100
+        "fa",
     ],
     "kk": [
         "kk",
         "kaz",
+        "No",
         "KK",
         "No",
-        "kk",
         "No",
         "kk",
         "Kazakh",
         "kk",
-        "Kazakh",
-        "kk"  # m2m100
+        "kk",
+    ],
+    "uz": [
+        "uz",  # google通道
+        "uzb",  # 字幕嵌入语言
+        "No",  # 百度通道
+        "UZ",  # deepl deeplx通道
+        "No",  # 腾讯通道
+        "uz",  # OTT通道
+        "uz",  # 微软翻译
+        "Uzbek",  # AI翻译
+        "uz",  # 阿里
+        "uz",  # qwen-mt
     ],
     "he": [
         "he",  # google通道
         "heb",  # 字幕嵌入语言
         "heb",  # 百度通道
         "HE",  # deepl deeplx通道
-        "he",  # 腾讯通道
+        "No",  # 腾讯通道
         "No",  # OTT通道
         "he",  # 微软翻译
         "Hebrew",  # AI翻译
         "he",
-        "Hebrew",
-        "he"  # m2m100
+        "he",
     ],
-    "bn": [
-        "bn",  # google通道
-        "ben",  # 字幕嵌入语言
-        "ben",  # 百度通道
-        "BN",  # deepl deeplx通道
-        "bn",  # 腾讯通道
-        "No",  # OTT通道
-        "bn",  # 微软翻译
-        "Bengali",  # AI翻译,
-        "bn",
-        "Bengali",
-        "bn"  # m2m100
-    ],
-    
-    "ro": [
-        "ro",  # google通道
-        "ron",  # 字幕嵌入语言
-        "rom",  # 百度通道
-        "RO",  # deepl deeplx通道
-        "ro",  # 腾讯通道
-        "No",  # OTT通道
-        "ro",  # 微软翻译
-        "Romanian",  # AI翻译
-        "ro",  # 阿里
-        "Romanian",# qwen-mt
-        "ro"  # m2m100
-    ],
-    
-    "uz": [
-        "uz",  # google通道
-        "uzb",  # 字幕嵌入语言
-        "No",  # 百度通道
-        "No",  # deepl deeplx通道
-        "uz",  # 腾讯通道
-        "uz",  # OTT通道
-        "uz",  # 微软翻译
-        "Uzbek",  # AI翻译
-        "uz",  # 阿里
-        "Northern Uzbek",  # qwen-mt qwen-tts qwen-asr
-        "uz"  # m2m100
-    ],
-    "bg": [
-        "bg",  # google通道
-        "bul",  # 字幕嵌入语言
-        "bg",  # 百度通道
-        "BG",  # deepl deeplx通道
-        "bg",  # 腾讯通道
-        "bg",  # OTT通道
-        "bg",  # 微软翻译
-        "Bulgarian",  # AI翻译
-        "bg",  # 阿里
-        "Bulgarian",  # qwen-mt qwen-tts qwen-asr
-        "bg"  # m2m100
-    ],
-    
-    
-    
-    
-    
+    'af': ['af', 'afr', 'afr', 'AF', 'No', 'No', 'af', 'Afrikaans', 'af', 'af'],
+    'sq': ['sq', 'sqi', 'alb', 'SQ', 'No', 'No', 'sq', 'Albanian', 'sq',
+           'sq'], 'am': ['am', 'amh', 'amh', 'No', 'No', 'No', 'am', 'Amharic', 'am', 'No'],
+    'az': ['az', 'aze', 'aze', 'AZ', 'No', 'No', 'az', 'Azerbaijani',
+           'az', 'az'], 'bs': ['bs', 'bos', 'bos', 'BS', 'No', 'No', 'bs', 'Bosnian', 'bs', 'bs'],
+    'ca': ['ca', 'cat', 'cat', 'CA', 'No', 'No', 'ca', 'Catalan', 'ca', 'ca'],
+    'hr': ['hr', 'hrv', 'hrv', 'HR', 'No', 'No', 'hr', 'Croatian', 'hbs', 'hr'],
+    'da': ['da', 'dan', 'dan', 'DA', 'No', 'No', 'da', 'Danish', 'da', 'da'],
+    'et': ['et', 'est', 'est', 'ET', 'No', 'No', 'et', 'Estonian', 'et', 'et'],
+    'gl': ['gl', 'glg', 'glg', 'GL', 'No', 'No', 'gl', 'Galician', 'gl', 'gl'],
+    'ka': ['ka', 'kat', 'geo', 'KA', 'No', 'No', 'ka', 'Georgian', 'ka', 'ka'],
+    'gu': ['gu', 'guj', 'guj', 'GU', 'No', 'No', 'gu', 'Gujarati', 'gu', 'gu'],
+    'is': ['is', 'isl', 'ice', 'IS', 'No', 'No', 'is', 'Icelandic', 'is', 'is'],
+    'iu': ['iu', 'iku', 'iku', 'No', 'No', 'No', 'iu', 'Inuktitut', 'iu', 'No'],
+    'ga': ['ga', 'gle', 'gle', 'GA', 'No', 'No', 'ga', 'Irish', 'ga', 'No'],
+    'jv': ['jv', 'jav', 'jav', 'JV', 'No', 'No', 'jav', 'Javanese', 'jv', 'jv'],
+    'kn': ['kn', 'kan', 'kan', 'No', 'No', 'No', 'kn', 'Kannada', 'kn', 'kn'],
+    'lv': ['lv', 'lav', 'lav', 'LV', 'No', 'No', 'lv', 'Latvian', 'lv', 'lv'],
+    'lt': ['lt', 'lit', 'lit', 'LT', 'No', 'No', 'lt', 'Lithuanian', 'lt', 'lt'],
+    'mk': ['mk', 'mkd', 'mac', 'MK', 'No', 'No', 'mk', 'Macedonian', 'mk', 'mk'],
+    'ml': ['ml', 'mal', 'mal', 'ML', 'No', 'No', 'ml', 'Malayalam', 'ml', 'No'],
+    'mt': ['mt', 'mlt', 'mlt', 'MT', 'No', 'No', 'mt', 'Maltese', 'mt', 'mt'],
+    'mr': ['mr', 'mar', 'mar', 'MR', 'No', 'No', 'mr', 'Marathi', 'mr', 'mr'],
+    'mn': ['mn', 'mon', 'No', 'MN', 'No', 'No', 'mn-Mong', 'Mongolian', 'mn', 'No'],
+    'ne': ['ne', 'nep', 'nep', 'NE', 'No', 'No', 'ne', 'Nepali', 'ne', 'ne'],
+    'ps': ['ps', 'pus', 'pus', 'PS', 'No', 'No', 'ps', 'Pashto', 'ps', 'No'],
+    'sr': ['sr', 'srp', 'srp', 'SR', 'No', 'No', 'sr-Cyrl', 'Serbian', 'No', 'sr'],
+    'si': ['si', 'sin', 'sin', 'No', 'No', 'No', 'si', 'Sinhala', 'si', 'si'],
+    'sk': ['sk', 'slk', 'sk', 'SK', 'No', 'No', 'sk', 'Slovak', 'sk', 'sk'],
+    'sl': ['sl', 'slv', 'slo', 'SL', 'No', 'No', 'sl', 'Slovenian', 'sl', 'sl'],
+    'so': ['so', 'som', 'som', 'No', 'No', 'No', 'so', 'Somali', 'so', 'No'],
+    'su': ['su', 'sun', 'sun', 'SU', 'No', 'No', 'su', 'Sundanese', 'su', 'No'],
+    'sw': ['sw', 'swa', 'swa', 'SW', 'No', 'No', 'sw', 'Swahili', 'sw', 'sw'],
+    'ta': ['ta', 'tam', 'tam', 'TA', 'No', 'No', 'ta', 'Tamil', 'ta', 'ta'],
+    'te': ['te', 'tel', 'tel', 'TE', 'No', 'No', 'te', 'Telugu', 'te', 'te'],
+    'cy': ['cy', 'cym', 'wel', 'CY', 'No', 'No', 'cy', 'Welsh', 'cy', 'cy'],
+    'zu': ['zu', 'zul', 'zul', 'ZU', 'No', 'No', 'zu', 'Zulu',
+           'zu', 'No'],
+
     "auto": [
         "auto",
         "auto",
@@ -809,21 +890,23 @@ LANG_CODE = {
         "auto",
         "auto",
         "auto",
-        "auto"
     ]
 }
+
 
 # 合并自定义语言
 def _merge_newlang():
     from ._paths import ROOT_DIR
-    _f=f'{ROOT_DIR}/videotrans/languages.json'
+    _f = f'{ROOT_DIR}/videotrans/languages.json'
     if Path(_f).exists():
         try:
-            _newlang=json.loads(Path(_f).read_text(encoding='utf-8'))
+            _newlang = json.loads(Path(_f).read_text(encoding='utf-8'))
             if _newlang:
                 LANG_CODE.update(_newlang)
         except Exception as e:
             logging.getLogger('VideoTrans').exception(f'加载自定义语言数据失败：{e}', exc_info=True)
     else:
-        Path(_f).write_text('{}',encoding='utf-8')
+        Path(_f).write_text('{}', encoding='utf-8')
+
+
 _merge_newlang()

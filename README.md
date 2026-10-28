@@ -1,17 +1,19 @@
-﻿> Sponsors: **[Recall.ai](https://www.recall.ai/product/meeting-transcription-api?utm_source=github&utm_medium=sponsorship&utm_campaign=jianchang512-pyvideotrans) - Meeting Transcription API**
->
-> If you’re looking for a transcription API for meetings, consider checking out **[Recall.ai](https://www.recall.ai/product/meeting-transcription-api?utm_source=github&utm_medium=sponsorship&utm_campaign=jianchang512-pyvideotrans)** , an API that works with Zoom, Google Meet, Microsoft Teams, and more
+﻿# pyVideoTrans
+
+> | Sponsors ||
+> | :--- | :--- |
+> | [Recall.ai Meeting Transcription API](https://www.recall.ai/product/meeting-transcription-api?utm_source=github&utm_medium=sponsorship&utm_campaign=jianchang512-pyvideotrans)   | If you’re looking for a transcription API for meetings, consider checking out **[Recall.ai](https://www.recall.ai/product/meeting-transcription-api?utm_source=github&utm_medium=sponsorship&utm_campaign=jianchang512-pyvideotrans)** , an API that works with Zoom, Google Meet, Microsoft Teams, and more |
+> | [OfoxAI: Text, speech, image and video model APIs](https://ofox.ai/zh?utm_source=github&utm_medium=sponsorship&utm_content=pyvideotrans) | Access GPT, Claude, Gemini and DeepSeek text models, ElevenLabs speech models, and image and video generation models with one API key—choose the models that fit your creative needs. |
+> | [infistar - 160+ 模型,一个 Key](https://www.infistar.cc/register?aff=9H6H7RR9&ref_source=link) | infistar 是 OpenAI 兼容中转,一个 Key 随时切 160+ 模型,挑出翻得最准又最省的那个 |
 
 
 ---
-
-# pyVideoTrans
 
 <div align="center">
 
 **A Powerful Open Source Video Translation / Audio Transcription / AI Dubbing / Subtitle Translation Tool**
 
-[中文](docs/README_CN.md) | [**Documentation**](https://pyvideotrans.com) | [**Online Q&A**](https://bbs.pyvideotrans.com)
+[简体中文](docs/README_CN.md) | [**Documentation**](https://pyvideotrans.com) | [**Online Q&A**](https://bbs.pyvideotrans.com)
 
 [![License](https://img.shields.io/badge/License-GPL_v3-blue.svg)](LICENSE) [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/) [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
 
@@ -54,7 +56,7 @@ We provide a pre-packaged `.exe` version for Windows 10/11 users, requiring no P
 
 > **Note**:
 > * Do not run directly from within the compressed archive.
-> * To use GPU acceleration, ensure **CUDA 12.8** and **cuDNN 9.11** are installed.
+> * To use GPU acceleration(NVIDIA GPU only), ensure **CUDA 12.8** and **cuDNN 9.11** are installed.
 
 ---
 
@@ -150,7 +152,7 @@ docker run -d -p 7860:7860 \
 
 > [WebUI documentation](docs/webui.md)
 
-### 5. (Optional) GPU Acceleration Configuration
+### 5. (Optional) NVIDIA GPU Acceleration Configuration
 
 If you have an NVIDIA graphics card, execute the following commands to install the CUDA-supported PyTorch version:
 
@@ -175,12 +177,16 @@ uv add nvidia-cublas-cu12 nvidia-cudnn-cu12
 | | WhisperX / Parakeet | Supports timestamp alignment & speaker diarization |
 | | Alibaba Qwen3-ASR / ByteDance Volcano | Online API, excellent for Chinese |
 | **Translation (LLM/MT)** | **DeepSeek** / ChatGPT | Supports context understanding, more natural translation |
+| | [infistar AI](https://www.infistar.cc/register?aff=9H6H7RR9&ref_source=link) | infistar - 160+ models, one Key, OpenAI compatible gateway, switch to 160+ models at any time with one Key |
+| | Atlas Cloud | OpenAI-compatible gateway, one Key for DeepSeek, GLM, Kimi, Qwen, MiniMax and proxied vendor models |
+| | Opper | EU-hosted OpenAI-compatible gateway, one Key for 700+ models from 50+ providers |
+| | Runcrate | GPU cloud with an OpenAI-compatible API: DeepSeek, GLM, Qwen, Kimi and gpt-oss, open models are free with your GitHub account |
 | | MiniMax AI | MiniMax M3 LLM, latest flagship model, OpenAI-compatible |
 | | Google / Microsoft | Traditional machine translation, fast speed |
 | | Ollama / M2M100 | Fully local offline translation |
 | **TTS (Speech Synthesis)** | **Edge-TTS** | Microsoft free interface, natural effect |
-| | **F5-TTS / CosyVoice** | Supports **Voice Cloning**, requires local deployment |
-| | GPT-SoVITS / ChatTTS | High-quality open-source TTS |
+| | **F5-TTS / OmniVoice / Qwen3-TTS** | Supports **Voice Cloning** |
+| | GPT-SoVITS / Index-TTS / ChatTTS | High-quality open-source TTS, requires local deployment |
 | | 302.AI / OpenAI / Azure | High-quality commercial API |
 
 ---
@@ -189,7 +195,7 @@ uv add nvidia-cublas-cu12 nvidia-cudnn-cu12
 
 * **Official Documentation**: [https://pyvideotrans.com](https://pyvideotrans.com) (Includes detailed tutorials, API configuration guides, FAQ)
 * **Online Q&A Community**: [https://bbs.pyvideotrans.com](https://bbs.pyvideotrans.com) (Submit error logs for automated AI analysis and answers)
-* **GitHub Wiki**: [architecture.md](docs/architecture.md) | [cli.md](docs/cli.md) | [webui.md](docs/webui.md) | [Synchronize.md](docs/Synchronize.md) | [faq.md](docs/faq.md)
+* **GitHub Wiki**: [architecture.md](docs/architecture.md) | [Add new Translator Channel](docs/dev_extend_en.md) | [cli.md](docs/cli.md) | [webui.md](docs/webui.md) | [Synchronize.md](docs/Synchronize.md) | [faq.md](docs/faq.md)
 
 ##  Disclaimer
 

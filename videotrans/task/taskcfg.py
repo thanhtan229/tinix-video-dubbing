@@ -4,7 +4,7 @@ from typing import Optional, Union
 from pathlib import Path
 
 isTrue = {True: "已选", False: "未选"}
-_duanjus = ["默认断句", "LLM重新断句"]
+_duanjus = ["", "LLM纠错"]
 _outs = ["单字幕", "目标语言在下双字幕", "目标语言在上双字幕"]
 _loops = ["循环播放", "拉长(降速播放)"]
 
@@ -139,7 +139,7 @@ class TaskCfgSTT(TaskCfgBase):
     remove_noise: bool = False  # 是否移除噪声
     enable_diariz: bool = False  # 是否进行说话人识别
     nums_diariz: int = 0  # 是否进行说话人识别
-    rephrase: int = 0  # 0 默认断句不处理 1=LLM重新断句
+    rephrase: bool = False  # 0 默认断句不处理 1=LLM重新断句
     fix_punc: int = 0  # 0=默认，1=恢复标点符号，2=移除所有标点
     recogn_mode: int = 0  # 0=Whisper, 1=OCR Subtitle, 2=Hybrid (Whisper+OCR+LLM)
     ocr_crop_box: tuple = (0.75, 0.96, 0.05, 0.95)  # (ymin, ymax, xmin, xmax)
@@ -156,7 +156,7 @@ class TaskCfgSTT(TaskCfgBase):
             _msg.append(f'{"已选 恢复标点符号" if self.fix_punc == 1 else "已选 删除所有标点符号"}')
 
         _msg.append(
-            f"{tr('Speech Recognit')}:{get_recogn_type(self.recogn_type)}, {self.model_name if self.recogn_type in ALLOW_CHANGE_MODEL else ''}  断句方式:{_duanjus[self.rephrase]}")
+            f"{tr('Speech Recognit')}:{get_recogn_type(self.recogn_type)}, {self.model_name if self.recogn_type in ALLOW_CHANGE_MODEL else ''}  {_duanjus[self.rephrase]}")
         _msg.append(f'发音语言:' + ('自动检测' if self.detect_language == 'auto' else self.detect_language))
         _msg.append(f'{isTrue[self.remove_noise]} 降噪')
         if app_cfg.proxy:
@@ -181,7 +181,7 @@ class TaskCfgTTS(TaskCfgBase):
     def __repr__(self):
         _msg = []
         from videotrans.util.tools import get_tts_type
-        from videotrans.configure.config import tr, app_cfg
+        from videotrans.configure.config import tr, app_cfg,settings
 
         _msg.append(f'[TaskCfgTTS]')
         _msg.append(f'原始输入文件名: {self.name}, \n输出结果保存到文件夹: {self.target_dir},\n临时文件夹: {self.cache_folder}')
@@ -192,7 +192,15 @@ class TaskCfgTTS(TaskCfgBase):
 
         if not self.voice_autorate and not self.video_autorate:
             _msg.append(f'{isTrue[self.remove_silent_mid]} 移除字幕间空隙,  {isTrue[self.align_sub_audio]} 强制对齐字幕和声音')
-
+        
+        _se,_all=settings.get('remove_dubb_silence', True),settings.get('remove_dubb_all_silence', True)
+        if _se:
+            _msg.append('已选 移除每条字幕配音开头和结尾静音缓冲')
+        if _all:
+            _msg.append('已选 移除每条字幕配音全部静音缓冲')
+        if _se or _all:
+            _msg.append(f"静音移除力度: {settings.get('remove_dubb_silence_level', 'default')}")
+        
         if app_cfg.proxy:
             _msg.append(f'代理地址:{app_cfg.proxy}')
         return "\n".join(_msg)
@@ -265,27 +273,31 @@ class TaskCfgVTT(TaskCfgSTT, TaskCfgTTS, TaskCfgSTS):
 
         _msg.append(f'{isTrue[self.clear_cache]} 清理已存在')
         _msg.append(f'{"已" if self.is_cuda else "未"}启用CUDA加速')
-        _msg.append(f'{isTrue[self.remove_noise]} 降噪')
+        if self.remove_noise:
+            _msg.append(f'{isTrue[self.remove_noise]} 降噪, 降噪模型:{settings.get("noise_model")}')
         if self.enable_diariz:
             _msg.append(f'已选 识别说话人，最大说话人数量{"不限制" if self.nums_diariz < 1 else self.nums_diariz + 1}')
         if self.fix_punc > 0:
             _msg.append(f'{"已选 恢复标点符号" if self.fix_punc == 1 else "已选 删除所有标点符号"}')
 
+        cuda_datatype=''
+        if self.recogn_type<2:
+            cuda_datatype=f'数据类型:{settings.get("cuda_com_type")}'
         _msg.append(
-            f"{tr('Speech Recognit')}:{get_recogn_type(self.recogn_type)}, {self.model_name if self.recogn_type in ALLOW_CHANGE_MODEL else ''}, 发音语言: {self.source_language}, 断句方式:{_duanjus[self.rephrase]}")
+            f"{tr('Speech Recognit')}:{get_recogn_type(self.recogn_type)}, {self.model_name if self.recogn_type in ALLOW_CHANGE_MODEL else ''}, 发音语言: {self.source_language}, {_duanjus[self.rephrase]}, {cuda_datatype}")
 
         if self.target_language in [None, 'No', '-'] or self.source_language == self.target_language:
             _msg.append(f'{"发音语言和目标语言相同" if self.source_language == self.target_language else "未选 目标语言"}，不翻译字幕')
         else:
             _msg.append(
-                f"{tr('Translate channel')}:{get_tanslate_type(self.translate_type)},原始语言:{self.source_language},目标语言:{self.target_language}, {isTrue[settings['aisendsrt']]} {tr('Send SRT')}")
+                f"{tr('Translate channel')}:{get_tanslate_type(self.translate_type)},原始语言:{self.source_language},目标语言:{self.target_language}, {isTrue[settings['aisendsrt']]} {tr('Send SRT')}, {settings.get('trans_thread')=}, {settings.get('aitrans_thread')=}")
+
 
         if self.app_mode == 'tiqu':
             if self.copysrt_rawvideo:
                 _msg.append('已选 将生成的字幕复制到视频目录下')
             _msg.append(f"{tr('Subtitle format:')}: {_outs[self.output_srt]}")
         else:
-
             if self.voice_role in [None, 'No']:
                 _msg.append('未选 配音角色，不进行配音')
             else:
@@ -298,6 +310,15 @@ class TaskCfgVTT(TaskCfgSTT, TaskCfgTTS, TaskCfgSTS):
 
                 if not self.voice_autorate and not self.video_autorate:
                     _msg.append(f'{isTrue[self.remove_silent_mid]} 移除字幕间空隙,  {isTrue[self.align_sub_audio]} 强制对齐字幕和声音')
+                
+                _se,_all=settings.get('remove_dubb_silence', True),settings.get('remove_dubb_all_silence', True)
+                if _se:
+                    _msg.append('已选 移除每条字幕配音开头和结尾静音缓冲')
+                if _all:
+                    _msg.append('已选 移除每条字幕配音全部静音缓冲')
+                if _se or _all:
+                    _msg.append(f"静音移除力度: {settings.get('remove_dubb_silence_level', 'default')}")
+                    
             _msg.append(
                 f'字幕: {_subtitles[self.subtitle_type]} {_outs[self.output_srt] if self.subtitle_type > 2 else ""}')
 
@@ -306,6 +327,8 @@ class TaskCfgVTT(TaskCfgSTT, TaskCfgTTS, TaskCfgSTS):
             if self.is_separate or self.background_music or _vocal_exists or _instr_exists:
 
                 _str = f"{isTrue[self.is_separate]} 分离人声与背景声"
+                if self.is_separate:
+                    _str+=f", 分离模型为:{settings.get('uvr_models')}"
                 if self.embed_bgm:
                     _str += f', 已选 重新嵌入背景声, 背景音量{self.backaudio_volume}, 背景声音时长 短于 视频时长时: {_loops[self.loop_backaudio]}'
 
@@ -319,5 +342,5 @@ class TaskCfgVTT(TaskCfgSTT, TaskCfgTTS, TaskCfgSTS):
             if self.only_out_mp4:
                 _msg.append('已选 仅输出mp4')
         if app_cfg.proxy:
-            _msg.append(f'代理地址:{app_cfg.proxy}')
+            _msg.append(f'代理地址: {app_cfg.proxy}')
         return "\n".join(_msg)

@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QMessageBox
 
 from videotrans import recognition
 from videotrans.component.progressbar import ClickableProgressBar
+from videotrans.configure import constants
 from videotrans.configure.config import tr, settings, app_cfg
 from videotrans.task.taskcfg import InputFile, SignMsg
 from videotrans.util.help_misc import show_error, shutdown_system
@@ -242,7 +243,7 @@ class WinActionTaskMixin:
             current_model_name = self.main.model_name.currentText()
             self.main.model_name.clear()
             self.main.model_name.addItems(
-                settings.Whisper_CPP_MODEL_LIST if self.main.recogn_type.currentIndex() == recognition.Whisper_CPP else settings.WHISPER_MODEL_LIST)
+                constants.WHISPER_CPP_MODELS.split(',') if self.main.recogn_type.currentIndex() == recognition.Whisper_CPP else constants.WHISPER_MODELS.split(','))
             self.main.model_name.setCurrentText(current_model_name)
             return
         if d['type'] == 'shitingerror':

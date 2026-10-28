@@ -54,7 +54,7 @@ def cleartext(text: str) -> str:
 
 
 def delete_punc(text):
-    pattern = r'[,?/;\':，。？、：；！!""''"()（）]+|(?<!\d)\.|\.(?!\d)'
+    pattern = r'''[,?/;:，。？、：；！!]+|(?<!\d)\.|\.(?!\d)'''
     res = re.sub(pattern, ' ', text)
     return re.sub(r'\s+', ' ', res).strip()
 
@@ -92,7 +92,7 @@ def format_time(s_time="", separate=',') -> str:
     hou = f'{int(hou):02}'[-2:]
     min = f'{int(min):02}'[-2:]
     sec = f'{int(sec):02}'
-    ms = f'{int(ms):03}'[-3:]
+    ms = f'{int(str(ms).ljust(3, "0")[:3]):03}'
     return f"{hou}:{min}:{sec}{separate}{ms}"
 
 
@@ -110,7 +110,8 @@ def srt_str_to_listdict(srt_string: str) -> List[SrtItem]:
 
             def parse_time(time_groups):
                 h, m, s, ms = time_groups
-                ms = ms.replace(',', '').replace('.', '') if ms else "0"
+                # the fraction is a decimal part of the second: ",5" is 500 ms
+                ms = ms[1:].ljust(3, '0')[:3] if ms else "0"
                 try:
                     return int(h) * 3600000 + int(m) * 60000 + int(s) * 1000 + int(ms)
                 except (ValueError, TypeError):
@@ -201,7 +202,7 @@ def get_subtitle_from_srt(srtfile, *, is_file=True) -> List[SrtItem]:
                 end_time=2000,
                 endraw="00:00:02,000",
                 time="00:00:00,000 --> 00:00:02,000",
-                text="\n".join(content)
+                text=content
             )
         ]
     return result

@@ -51,6 +51,9 @@ class Worker(QThread):
             if vail_file(app_cfg.onlyone_importsrtfile):
                 Path(trk.cfg.source_sub).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(app_cfg.onlyone_importsrtfile,trk.cfg.source_sub)
+            if vail_file(app_cfg.onlyone_importsrtfile_target):
+                Path(trk.cfg.source_sub).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(app_cfg.onlyone_importsrtfile_target,trk.cfg.target_sub)
             app_cfg.onlyone_source_sub = trk.cfg.source_sub
             app_cfg.onlyone_source_wav = trk.cfg.source_wav
             app_cfg.onlyone_target_sub = trk.cfg.target_sub
@@ -60,10 +63,8 @@ class Worker(QThread):
             app_cfg.onlyone_name = trk.cfg.name
             app_cfg.onlyone_is_cuda=trk.cfg.is_cuda
             app_cfg.onlyone_recogn2_video=f'{trk.cfg.cache_folder}/recogn2_tmp_video.mp4'
-            # 如果存在原始字幕，并且字幕第一条开头存在说话人标识 \[(spk|speakers?)\s*?\d+\]
-            # 则取出所有说话人，不存在的以第一条的为默认，然后从字幕中删除
-            # 目标语言字幕文件
-            
+
+
             app_cfg.set_countdown(0)
             trk.prepare()                           
             if self._exit(): return
@@ -167,14 +168,16 @@ class Worker(QThread):
             trk.task_done()
         except BaseException as e:
             from videotrans.configure.excepts import get_msg_from_except
-            logger.exception(f'单视频模式翻译失败{e}',exc_info=True)
+            logger.exception(f'单视频模式翻译失败:{e}',exc_info=True)
             except_msg = get_msg_from_except(e)
             msg=f"{except_msg}\n{traceback.format_exc()}\n"
             if trk:
-                msg+=f'cfg={trk.cfg}'
+                video_duration_ms=trk.video_info.get('time')
+                msg+=f'{trk=}\n{video_duration_ms=}'
             self._post(text=msg, type='error')
         finally:
             app_cfg.onlyone_importsrtfile=None
+            app_cfg.onlyone_importsrtfile_target=None
 
     def _post(self, text='', type='logs'):
         try:
@@ -183,7 +186,8 @@ class Worker(QThread):
         except (ValueError,IndexError,TypeError):
             pass
 
-    def _exit(self):
+    @staticmethod
+    def _exit():
         if app_cfg.exit_soft or app_cfg.current_status != 'ing':
             return True
         return False

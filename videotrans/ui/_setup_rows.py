@@ -2,7 +2,7 @@ from PySide6 import QtCore, QtWidgets
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QSizePolicy
 
-from videotrans.configure.config import tr, settings
+from videotrans.configure.config import tr, settings, params
 
 _channel_com = 200
 
@@ -14,6 +14,7 @@ def _create_file_row(ui, parent):
     ui.btn_get_video = QtWidgets.QPushButton(parent)
     ui.btn_get_video.setMinimumSize(QtCore.QSize(120, 30))
     ui.btn_get_video.setObjectName("btn_get_video")
+
 
     ui.source_mp4 = QtWidgets.QLabel('')
     ui.source_mp4.setMaximumWidth(100)
@@ -74,7 +75,6 @@ def _create_asr_row(ui, parent):
     ui.reglabel.setStyleSheet("""background-color:transparent""")
 
     ui.reglabel.setText(tr("Speech Recognit"))
-
     ui.recogn_mode = QtWidgets.QComboBox(parent)
     ui.recogn_mode.setObjectName("recogn_mode")
     ui.recogn_mode.addItems([
@@ -99,17 +99,17 @@ def _create_asr_row(ui, parent):
     ui.model_name_help.setText(tr("ASRModel"))
 
     ui.model_name = QtWidgets.QComboBox(parent)
-    ui.model_name.setMinimumWidth(200)
+    ui.model_name.setMinimumWidth(300)
     ui.model_name.setObjectName("model_name")
 
-    ui.rephrase = QtWidgets.QComboBox()
-    ui.rephrase.addItems([tr("Default sentence"), tr("LLM Rephrase")])
+    ui.rephrase = QtWidgets.QCheckBox()
+    ui.rephrase.setText(tr("LLM Rephrase"))
     ui.rephrase.setToolTip(tr("re-segment the sentence.the original segmentation will be used"))
 
     ui.remove_noise = QtWidgets.QCheckBox()
     ui.remove_noise.setText(tr("Noise reduction"))
     ui.remove_noise.setToolTip(
-        tr("Select to perform noise reduction processing from modelscope.cn, which takes a long time"))
+        tr("Select to form noise reduction processing from modelscope.cn, which takes a long time"))
 
     ui.recogn2pass = QtWidgets.QCheckBox()
     ui.recogn2pass.setToolTip(tr("Secondary speech recognition of dubbing files"))
@@ -121,8 +121,8 @@ def _create_asr_row(ui, parent):
     layout.addWidget(ui.recogn_type)
     layout.addWidget(ui.model_name_help)
     layout.addWidget(ui.model_name)
-    layout.addWidget(ui.rephrase)
     layout.addStretch()
+    layout.addWidget(ui.rephrase)
     layout.addWidget(ui.recogn2pass)
     return layout
 
@@ -234,6 +234,7 @@ def _create_alignment_row(ui, parent):
     ui.align_sub_audio = QtWidgets.QCheckBox()
     ui.align_sub_audio.setObjectName("align_sub_audio")
     ui.align_sub_audio.setVisible(False)
+
     ui.subtitle_type = QtWidgets.QComboBox(parent)
     ui.subtitle_type.setMinimumSize(QtCore.QSize(150, 30))
     ui.subtitle_type.setObjectName("subtitle_type")
@@ -273,7 +274,7 @@ def _create_alignment_row(ui, parent):
     ui.label.setStyleSheet("""background-color:transparent""")
 
     ui.proxy = QtWidgets.QLineEdit(parent)
-    ui.proxy.setMinimumSize(QtCore.QSize(200, 30))
+    ui.proxy.setMinimumSize(QtCore.QSize(150, 30))
     ui.proxy.setObjectName("proxy")
 
     ui.output_srt_label = QtWidgets.QLabel(tr('Output') + tr('Subtitles'))
