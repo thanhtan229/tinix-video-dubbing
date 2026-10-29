@@ -78,7 +78,7 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 - Gemini TTS (`videotrans/tts/_geminitts.py`) migrated to `generate_content` with `response_modalities=["AUDIO"]` and a prebuilt voice (2026-10-29). Live check: 4.28 s of non-silent audio for one sentence (voice Kore, model from settings). Spoken content not checked with ASR.
 - Gemini speech recognition (`videotrans/recognition/_gemini.py`) migrated to segment timestamps (2026-10-29, option 1). The model returns a JSON array of `{start, end, text}`; word times are spread across each segment by word length, then the existing resegmenting runs. Helpers `parse_segments` and `segments_to_words` have 10 unit tests.
   - Live run on the 60 s Vietnamese clip with `gemini-2.5-flash-lite`: 17 subtitle items; the transcript has punctuation and corrects several Whisper errors (`nước sôi`, `nở`, `cắt ớt tươi`, `topping`).
-  - Open decision: the configured default ASR model `gemini-3.5-transcribe` returns empty text through `generate_content` (finish reason STOP). Changing the default model needs approval; the user chooses it in the model list. Not changed.
+  - Default Gemini ASR model changed from `gemini-3.5-transcribe` (returns empty text through `generate_content`) to `gemini-2.5-flash-lite` (approved 2026-10-29), in `GEMINI_ASR_MODELS`.
 
 ## Hybrid LLM step: removed (2026-10-29)
 
