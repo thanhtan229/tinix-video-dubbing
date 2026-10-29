@@ -58,7 +58,7 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 
 ## Recommended next steps
 
-1. Handle mixed-case overlay fragments that the current token rule misses (for example `HObE`, `HQbE` and `ISIMA`), for example a rule for short tokens with three or more uppercase letters. Check the rule on several videos first, because a blanket rule can remove real capitalised words.
+1. Handle mixed-case overlay fragments that the current token rule misses (for example `HObE`, `HQbE` and `ISIMA`). Not added yet: the only local clip with real subtitle text is the 45 s speech clip. The two other distinct local videos (product ads in `Tinix-Facebook-Hunter/_DOWNLOAD/_TINIX`) have no subtitle-band text above the confidence threshold, so they cannot test the rule. Needs more videos with real speech and hardsubs.
 2. Decide the OCR crop default by measuring a tighter band around the real subtitle on several videos.
 3. Run the hybrid LLM step on a short segment to check its effect on text quality.
 4. Review the new Vietnamese strings with a native speaker.
