@@ -48,13 +48,31 @@ def get_ocr_instance():
 MIN_LINE_SCORE = 0.85
 
 
+# Short acronyms that are real subtitle words and must not be treated as overlay noise.
+_KEEP_ACRONYMS = {'AI', 'TV', 'US', 'UK', 'OK', 'PC', 'ID', 'USA', 'MMA', 'CEO', 'AM', 'PM', 'IT', 'ET', 'VM', 'II', 'III'}
+
+
+def _is_overlay_token(token: str) -> bool:
+    """Form-based check for on-screen overlay fragments such as 2MA380, 90m or IMA."""
+    core = re.sub(r'^\W+|\W+$', '', token)
+    if not core:
+        return False
+    # Digits mixed with letters, unless a run of 3+ lowercase letters shows a real word
+    # (for example a merged subtitle word like "andworks24/7to").
+    if re.search(r'\d', core) and re.search(r'[A-Za-z]', core) and not re.search(r'[a-z]{3,}', core):
+        return True
+    return core.isupper() and 2 <= len(core) <= 4 and core not in _KEEP_ACRONYMS
+
+
 def filter_ocr_lines(ocr_result) -> str:
-    """Join OCR line texts, skipping empty lines and low-confidence lines."""
+    """Join OCR line texts, skipping low-confidence lines and overlay fragments."""
     texts = []
     for box_info in ocr_result or []:
-        text = str(box_info[1]).strip()
-        if text and float(box_info[2]) >= MIN_LINE_SCORE:
-            texts.append(text)
+        if float(box_info[2]) < MIN_LINE_SCORE:
+            continue
+        words = [w for w in str(box_info[1]).split() if not _is_overlay_token(w)]
+        if words:
+            texts.append(" ".join(words))
     return " ".join(texts)
 
 
