@@ -80,6 +80,12 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
   - Live run on the 60 s Vietnamese clip with `gemini-2.5-flash-lite`: 17 subtitle items; the transcript has punctuation and corrects several Whisper errors (`nước sôi`, `nở`, `cắt ớt tươi`, `topping`).
   - Default Gemini ASR model changed from `gemini-3.5-transcribe` (returns empty text through `generate_content`) to `gemini-2.5-flash-lite` (approved 2026-10-29), in `GEMINI_ASR_MODELS`.
 
+## Persisted settings and default changes (2026-10-29)
+
+- Found: `videotrans/params.json` (git-ignored, the user's own settings) keeps values saved from earlier defaults. The stored `ocr_crop_box` and `erase_sub_area` were still `(0.75, 0.96, 0.05, 0.95)`, which overrode the new defaults in code, so the UI showed the old boxes. Both were updated to `(0.68, 0.98, 0.05, 0.95)` on this machine because they still held the old default, not a user choice.
+- Keys missing from `params.json` (for example `vieneu_python`) take the code default at runtime, so they work without editing the file.
+- Open: existing installs keep old saved values when a default changes in code. A migration (replace a stored value only when it equals the previous default) would prevent this for future default changes. Not implemented.
+
 ## VieNeu-TTS channel (2026-10-29, approved)
 
 - New TTS channel `VIENEU_TTS = 41` ("VieNeu-TTS(Local)", `videotrans/tts/_vieneu.py`). It calls a long-lived worker (`videotrans/tts/_vieneu_worker.py`) that runs in the VieNeu-TTS Python environment, so the project venv does not get the VieNeu dependencies. The worker loads the model once (about 55 s), then answers JSON requests over stdin/stdout.
