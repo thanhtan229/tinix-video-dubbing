@@ -61,7 +61,7 @@ class RecognMixin:
                     logger.exception(f'降噪失败，跳过 {e}', exc_info=True)
 
         recogn_mode = getattr(self.cfg, 'recogn_mode', 0)
-        crop_box = getattr(self.cfg, 'ocr_crop_box', (0.68, 0.98, 0.05, 0.95))
+        crop_box = getattr(self.cfg, 'ocr_crop_box', (0.75, 0.96, 0.05, 0.95))
 
         if recogn_mode == 1:
             self.signal(text=tr("Starting OCR Subtitle Extraction..."))

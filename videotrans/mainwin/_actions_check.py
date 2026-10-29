@@ -146,7 +146,7 @@ class WinActionCheckMixin:
         self.cfg['pitch'] = f'+{pitch}Hz' if pitch >= 0 else f'{pitch}Hz'
 
         self.cfg['recogn_mode'] = getattr(self.main, 'recogn_mode_val', self.main.recogn_mode.currentIndex())
-        self.cfg['ocr_crop_box'] = getattr(self.main, 'ocr_crop_box_val', (0.68, 0.98, 0.05, 0.95))
+        self.cfg['ocr_crop_box'] = getattr(self.main, 'ocr_crop_box_val', (0.75, 0.96, 0.05, 0.95))
         self.cfg['recogn_type'] = self.main.recogn_type.currentIndex()
         if self.cfg['recogn_type'] == recognition.Faster_Whisper_XXL and not self.show_xxl_select():
             self.main.startbtn.setDisabled(False)

@@ -41,19 +41,6 @@ def _is_meaningful_ocr(text) -> bool:
     return len("".join(str(text or "").split())) >= 2
 
 
-def _ocr_only_entry(o_item: SrtItem) -> Dict:
-    return {
-        "line": 0,
-        "time": o_item.time,
-        "start_time": o_item.start_time,
-        "end_time": o_item.end_time,
-        "whisper_text": "",
-        "ocr_text": o_item.text,
-        "startraw": o_item.startraw,
-        "endraw": o_item.endraw
-    }
-
-
 def align_and_reconcile_transcripts(
     whisper_items: List[SrtItem],
     ocr_items: List[SrtItem]
@@ -100,30 +87,20 @@ def align_and_reconcile_transcripts(
         ]
 
     aligned_pairs = []
-    emitted_ocr = set()
 
     for w_idx, w_item in enumerate(whisper_items, start=1):
         w_start, w_end = get_item_ms(w_item)
-        matches = []
+        matching_ocr_texts = []
 
-        for o_idx, o_item in enumerate(ocr_items):
+        for o_item in ocr_items:
             o_start, o_end = get_item_ms(o_item)
             # Calculate time overlap
             overlap = max(0, min(w_end, o_end) - max(w_start, o_start))
             if overlap > 0 or (abs(w_start - o_start) < 600 and abs(w_end - o_end) < 600):
-                matches.append((o_idx, o_item))
+                matching_ocr_texts.append(o_item.text)
 
-        if len(matches) >= 2:
-            # Whisper merged several on-screen lines into one segment. Emit one entry per
-            # OCR line so the on-screen text and its own timing are kept.
-            for o_idx, o_item in matches:
-                if o_idx in emitted_ocr:
-                    continue
-                emitted_ocr.add(o_idx)
-                aligned_pairs.append(_ocr_only_entry(o_item))
-            continue
+        ocr_combined = " ".join(matching_ocr_texts).strip()
 
-        ocr_combined = " ".join(o_item.text for _, o_item in matches).strip()
         aligned_pairs.append({
             "line": w_idx,
             "time": w_item.time,
@@ -135,9 +112,6 @@ def align_and_reconcile_transcripts(
             "endraw": w_item.endraw
         })
 
-    aligned_pairs.sort(key=lambda it: _value_to_ms(it["startraw"]))
-    for line_no, it in enumerate(aligned_pairs, start=1):
-        it["line"] = line_no
     return aligned_pairs
 
 

@@ -94,7 +94,7 @@ class MainWindow(BindSignalsMixin, LifecycleMixin, QMainWindow, Ui_MainWindow):
 
         _recogn_mode = int(params.get('recogn_mode', 0))
         self.recogn_mode_val = _recogn_mode
-        self.ocr_crop_box_val = tuple(params.get('ocr_crop_box', [0.68, 0.98, 0.05, 0.95]))
+        self.ocr_crop_box_val = tuple(params.get('ocr_crop_box', [0.75, 0.96, 0.05, 0.95]))
         self.recogn_mode.setCurrentIndex(_recogn_mode)
         if _recogn_mode == 1:
             self.btn_crop_box.setVisible(True)

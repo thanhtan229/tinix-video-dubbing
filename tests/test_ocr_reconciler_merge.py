@@ -1,4 +1,4 @@
-"""Regression tests: merged Whisper segments keep per-line OCR text; OCR noise is dropped."""
+"""Behaviour tests for the hybrid reconciler: Whisper stays the text source; OCR noise is dropped."""
 
 from videotrans.task.taskcfg import SrtItem
 from videotrans.ocr._reconciler import align_and_reconcile_transcripts
@@ -17,16 +17,15 @@ def _item(text, start_ms, end_ms, line=1):
 
 
 class TestMergedWhisperSegment:
-    def test_segment_spanning_two_ocr_lines_is_split_per_line(self):
+    def test_merged_segment_keeps_whisper_text_and_collects_all_ocr_lines(self):
         whisper = [_item("hello world  second line", 0, 3820)]
         ocr = [_item("Hello world", 0, 3360), _item("Second line", 3360, 4360)]
 
         out = align_and_reconcile_transcripts(whisper, ocr)
 
-        assert [it["ocr_text"] for it in out] == ["Hello world", "Second line"]
-        assert all(it["whisper_text"] == "" for it in out)
-        assert [it["line"] for it in out] == [1, 2]
-        assert [it["start_time"] for it in out] == [0, 3360]
+        assert len(out) == 1
+        assert out[0]["whisper_text"] == "hello world  second line"
+        assert out[0]["ocr_text"] == "Hello world Second line"
 
     def test_single_ocr_line_keeps_whisper_text_with_ocr_context(self):
         whisper = [_item("hello world", 0, 3000)]
@@ -39,7 +38,6 @@ class TestMergedWhisperSegment:
         assert out[0]["ocr_text"] == "Hello world"
 
     def test_one_ocr_line_overlapping_two_segments_keeps_both_whisper_entries(self):
-        # A single OCR line matches each segment on its own, so the normal path applies.
         whisper = [_item("first part", 0, 2000), _item("second part", 2000, 4000)]
         ocr = [_item("First part Second part", 0, 4000)]
 
