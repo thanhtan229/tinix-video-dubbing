@@ -56,6 +56,7 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
   - Live check on the six known blocks with the new flow: no meaning drift. One edit applied (`muối ngọc yến … → muối Ngọc Yến …`). The `tất pin → topping` fix was proposed but skipped: `tất pin` appears twice in that block, and the model did not use the longer phrase the prompt asks for. This is a deliberate trade-off: safer, but it misses some correct fixes.
   - Judge and guard are still applied to changed blocks.
   - Unit tests: 23 pass.
+- LLM step is optional (decided 2026-10-29): setting `hybrid_llm_enabled` in `params.json`, default `False`. Only blocks with on-screen OCR text are sent to the LLM; other blocks keep Whisper text. No settings-dialog toggle exists yet; the setting is edited in `params.json`.
 - Measured on 15 random blocks from the Vietnamese clip (seed 20261029), labelled by the user:
   - Whisper text matches the label on 10 of 15. Final output after the LLM step also matches 10 of 15.
   - The LLM proposed two edits on these blocks: `tấm bên → temp` (wrong) and removal of `tức` (wrong). The judge reverted both. No correct fix was applied.

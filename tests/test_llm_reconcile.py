@@ -123,3 +123,18 @@ class TestJudge:
     def test_revert_uses_whisper_text_only_for_changed_blocks(self):
         aligned = [{"whisper_text": "soi vô"}, {"whisper_text": "nợ"}]
         assert revert_changed(aligned, ["nước sôi vô", "nở."], [False, True]) == ["soi vô", "nở."]
+
+
+from videotrans.ocr._llm_reconcile import merge_selected, select_ocr_blocks
+
+
+class TestOcrOnlySelection:
+    def test_selects_only_blocks_with_ocr_text(self):
+        aligned = [{"whisper_text": "a", "ocr_text": ""}, {"whisper_text": "b", "ocr_text": "B"},
+                   {"whisper_text": "c", "ocr_text": "   "}, {"whisper_text": "d", "ocr_text": "D"}]
+        assert select_ocr_blocks(aligned) == [1, 3]
+
+    def test_merge_keeps_whisper_text_for_unselected_blocks(self):
+        aligned = [{"whisper_text": "a", "ocr_text": ""}, {"whisper_text": "b", "ocr_text": "B"},
+                   {"whisper_text": "c", "ocr_text": ""}]
+        assert merge_selected(aligned, [1], ["b fixed"]) == ["a", "b fixed", "c"]

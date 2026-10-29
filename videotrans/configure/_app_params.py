@@ -79,6 +79,7 @@ class AppParams:
             "ocr_crop_box": [0.68, 0.98, 0.05, 0.95],
             "erase_sub_mode": 0,
             "erase_sub_area": [0.68, 0.98, 0.05, 0.95],
+            "hybrid_llm_enabled": False,
             "translate_type": 0,# 默认 google翻译
             "tts_type": 0,# 默认 edge-tts
 

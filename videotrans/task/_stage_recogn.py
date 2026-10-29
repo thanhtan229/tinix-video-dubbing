@@ -17,7 +17,11 @@ from videotrans.util.help_srt import get_subtitle_from_srt, delete_punc
 
 def _llm_reconciled_texts(signal, aligned):
     """Run the Hybrid LLM step. Returns one text per aligned item, or None to keep Whisper text."""
-    if not aligned:
+    if not aligned or not params.get('hybrid_llm_enabled', False):
+        return None
+    from videotrans.ocr._llm_reconcile import select_ocr_blocks, merge_selected, reconcile_with_gemini
+    indices = select_ocr_blocks(aligned)
+    if not indices:
         return None
     api_key = str(params.get('gemini_key', '')).split(',')[0].strip()
     if not api_key:
@@ -25,8 +29,8 @@ def _llm_reconciled_texts(signal, aligned):
         return None
     model = str(params.get('gemini_model', '')).strip() or 'gemini-flash-latest'
     try:
-        from videotrans.ocr._llm_reconcile import reconcile_with_gemini
-        return reconcile_with_gemini(aligned, api_key, model)
+        selected = reconcile_with_gemini([aligned[i] for i in indices], api_key, model)
+        return merge_selected(aligned, indices, selected)
     except Exception as e:
         message = str(e).replace(api_key, '[hidden]')
         logger.exception(f"Hybrid LLM reconcile failed: {message}")

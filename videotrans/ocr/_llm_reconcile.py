@@ -110,6 +110,19 @@ def guard_reconciled(aligned: List[Dict], texts: List[str]) -> List[str]:
     return result
 
 
+def select_ocr_blocks(aligned: List[Dict]) -> List[int]:
+    """Indices of blocks that have on-screen subtitle text. The LLM step only runs on these."""
+    return [i for i, item in enumerate(aligned) if (item.get("ocr_text") or "").strip()]
+
+
+def merge_selected(aligned: List[Dict], indices: List[int], selected_texts: List[str]) -> List[str]:
+    """Full list of texts: LLM text for the selected blocks, Whisper text for all others."""
+    texts = [(item.get("whisper_text") or "") for item in aligned]
+    for i, text in zip(indices, selected_texts):
+        texts[i] = text
+    return texts
+
+
 def _gemini_client(api_key: str):
     from google import genai
     from google.genai import types
