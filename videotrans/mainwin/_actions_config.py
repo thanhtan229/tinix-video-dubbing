@@ -187,6 +187,9 @@ class WinActionConfigMixin:
     def set_voice_role(self, t):
         role = self.main.voice_role.currentText()
         code = translator.get_code(show_text=t)
+        # Vietnamese target: use the local VieNeu voice when the default channel is still selected.
+        if code == 'vi' and self.main.tts_type.currentIndex() == 0                 and Path(str(params.get('vieneu_python', '') or '')).exists():
+            self.main.tts_type.setCurrentIndex(tts.VIENEU_TTS)
         if code and code not in ['-','No']:
             _tips=""
             is_allow_lang = tts.is_allow_lang(langcode=code, tts_type=self.main.tts_type.currentIndex())
