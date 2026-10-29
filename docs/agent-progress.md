@@ -52,6 +52,10 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
   - Still missed: `tất pin gì bỏ vô tất pin đó` rewritten as `có tất cả các loại pin gì thì bỏ pin đó vô` was marked OK. The judge is an LLM and not a guarantee.
   - Word-level similarity was tested as a second, non-LLM layer. It does not separate the cases (`soi` to `nước sôi` scored 0.74, `tất pin` to `topping` scored 0.57), so it is not used.
   - Full chain check on six blocks: the `soi/nợ` block reverted to Whisper; the others were accepted.
+- Switched to minimal edits (2026-10-29, approved). The LLM now proposes `original | replacement` pairs (`prompts/srt/hybrid_edit.txt`), not full rewrites. Code applies a pair only when the original occurs exactly once in the Whisper text. The old full-rewrite prompt (`hybrid_reconcile.txt`) is no longer used.
+  - Live check on the six known blocks with the new flow: no meaning drift. One edit applied (`muối ngọc yến … → muối Ngọc Yến …`). The `tất pin → topping` fix was proposed but skipped: `tất pin` appears twice in that block, and the model did not use the longer phrase the prompt asks for. This is a deliberate trade-off: safer, but it misses some correct fixes.
+  - Judge and guard are still applied to changed blocks.
+  - Unit tests: 23 pass.
   - Unit tests for prompt building and response parsing: 8 pass.
 - Erase modes, rendered with the real `_build_subtitle_filter` on the Vietnamese clip, area `(0.68, 0.98)`:
   - Mode 1 (Gaussian blur): original recipe text unreadable; clean edges.

@@ -1,54 +1,68 @@
 # -*- coding: utf-8 -*-
-"""LLM step for Hybrid recognition: reconcile Whisper (audio) and OCR (on-screen) text.
+"""LLM step for Hybrid recognition: minimal corrections to Whisper text using OCR evidence.
 
-Uses the existing prompt in prompts/srt/hybrid_reconcile.txt. The prompt also asks for
-translation; here the target language is set to the source language so the pipeline's
-own translation stage is not repeated.
+The model proposes "original phrase -> replacement" pairs. Each pair is applied only when the
+original phrase occurs exactly once in the Whisper text. A second call judges whether the
+changed blocks keep the original meaning; changed blocks that fail fall back to Whisper text.
 """
 import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
-from videotrans.configure.config import ROOT_DIR
+from videotrans.configure.config import ROOT_DIR, logger
 from videotrans.ocr._reconciler import format_hybrid_prompt_block
 
-PROMPT_PATH = Path(ROOT_DIR) / "videotrans" / "prompts" / "srt" / "hybrid_reconcile.txt"
-SOURCE_LANG_PHRASE = "the same language as Audio_ASR"
-SYSTEM_INSTRUCTION = "You are a top-tier Subtitle Reconciliation Engine."
-
-
-def build_prompt(template: str, aligned: List[Dict]) -> str:
-    body = template.replace("{lang}", SOURCE_LANG_PHRASE).replace("{lang_prompt}", "")
-    return f"{body}\n\n<INPUT>\n{format_hybrid_prompt_block(aligned, '', '')}</INPUT>\n"
-
-
-def parse_reconciled(text: str, expected: int) -> List[str]:
-    """Return one reconciled text per input block, in input order.
-
-    Raises ValueError when the response does not contain exactly the expected indices.
-    """
-    without_think = re.sub(r"<think>.*?</think>", "", text or "", flags=re.I | re.S)
-    match = re.search(r"<TRANSLATE_TEXT>(.*?)(?:</TRANSLATE_TEXT>|$)", without_think, re.S | re.I)
-    if not match:
-        raise ValueError("LLM response has no <TRANSLATE_TEXT> block")
-    body = re.sub(r"```[a-zA-Z]*", "", match.group(1)).strip()
-
-    texts: Dict[int, str] = {}
-    for block in re.split(r"\n\s*\n", body):
-        lines = [line.strip() for line in block.strip().splitlines() if line.strip()]
-        if len(lines) < 3 or not lines[0].isdigit():
-            continue
-        texts[int(lines[0])] = " ".join(lines[2:])
-
-    if sorted(texts) != list(range(1, expected + 1)):
-        raise ValueError(f"LLM returned blocks {sorted(texts)}, expected 1..{expected}")
-    return [texts[i] for i in range(1, expected + 1)]
-
-
+EDIT_PROMPT_PATH = Path(ROOT_DIR) / "videotrans" / "prompts" / "srt" / "hybrid_edit.txt"
+SYSTEM_INSTRUCTION = "You are a careful subtitle correction engine. You output only the requested edit lines."
 JUDGE_INSTRUCTION = """You compare an original speech transcript (A) with a proposed edit (B) of the same subtitle line.
 Answer OK if B keeps the same meaning as A. Spelling, punctuation, capitalisation and removing filler words are allowed.
 Answer CHANGED if B changes any fact, word meaning, name, number, or adds or drops content.
 Output exactly one line per item in the form "<index> OK" or "<index> CHANGED", wrapped in <JUDGE> tags. No other text."""
+MIN_LENGTH_RATIO = 0.6
+
+
+def build_edit_prompt(template: str, aligned: List[Dict]) -> str:
+    return f"{template}\n\n<INPUT>\n{format_hybrid_prompt_block(aligned, '', '')}</INPUT>\n"
+
+
+def parse_edits(text: str) -> List[Tuple[int, str, str]]:
+    """Return (block_index, original, replacement) triples from the <EDITS> block.
+
+    An empty result is valid (no changes needed). Malformed lines are skipped.
+    """
+    without_think = re.sub(r"<think>.*?</think>", "", text or "", flags=re.I | re.S)
+    match = re.search(r"<EDITS>(.*?)(?:</EDITS>|$)", without_think, re.S | re.I)
+    if not match:
+        raise ValueError("LLM response has no <EDITS> block")
+    body = re.sub(r"```[a-zA-Z]*", "", match.group(1))
+    edits = []
+    for line in body.splitlines():
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) != 3 or not parts[0].isdigit() or not parts[1]:
+            continue
+        edits.append((int(parts[0]), parts[1], parts[2]))
+    return edits
+
+
+def apply_edits(aligned: List[Dict], edits: List[Tuple[int, str, str]]) -> Tuple[List[str], int, int]:
+    """Apply edits to the Whisper text of each block.
+
+    An edit is applied only when its original phrase occurs exactly once in the current text.
+    Returns (texts, applied_count, skipped_count).
+    """
+    texts = [(item.get("whisper_text") or "") for item in aligned]
+    applied = skipped = 0
+    for index, original, replacement in edits:
+        if not (1 <= index <= len(aligned)) or original == replacement:
+            skipped += 1
+            continue
+        text = texts[index - 1]
+        if text.count(original) == 1:
+            texts[index - 1] = text.replace(original, replacement)
+            applied += 1
+        else:
+            skipped += 1
+    return texts, applied, skipped
 
 
 def build_judge_prompt(pairs: List[tuple]) -> str:
@@ -76,12 +90,36 @@ def revert_changed(aligned: List[Dict], texts: List[str], kept: List[bool]) -> L
     ]
 
 
-def judge_with_gemini(pairs: List[tuple], api_key: str, model: str) -> List[bool]:
-    """Ask Gemini whether each proposed edit keeps the original meaning."""
+def _capitalized_names(text: str) -> List[str]:
+    """Capitalised words that are not the first word (likely proper nouns)."""
+    words = re.findall(r"\S+", text or "")
+    return [re.sub(r"[^\w]", "", w) for w in words[1:] if w[:1].isupper() and len(re.sub(r"[^\w]", "", w)) >= 2]
+
+
+def guard_reconciled(aligned: List[Dict], texts: List[str]) -> List[str]:
+    """Safety net: fall back to Whisper text when a block is much shorter or loses a proper noun."""
+    result = []
+    for item, text in zip(aligned, texts):
+        whisper_text = (item.get("whisper_text") or "").strip()
+        if not whisper_text:
+            result.append(text)
+            continue
+        too_short = len(text) < MIN_LENGTH_RATIO * len(whisper_text)
+        names_lost = any(name not in text for name in _capitalized_names(whisper_text))
+        result.append(whisper_text if (too_short or names_lost) else text)
+    return result
+
+
+def _gemini_client(api_key: str):
     from google import genai
     from google.genai import types
 
-    client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=120_000))
+    return genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=120_000)), types
+
+
+def judge_with_gemini(pairs: List[tuple], api_key: str, model: str) -> List[bool]:
+    """Ask Gemini whether each proposed edit keeps the original meaning."""
+    client, types = _gemini_client(api_key)
     try:
         response = client.models.generate_content(
             model=model,
@@ -93,52 +131,23 @@ def judge_with_gemini(pairs: List[tuple], api_key: str, model: str) -> List[bool
     return parse_judge(response.text, expected=len(pairs))
 
 
-MIN_LENGTH_RATIO = 0.6
-
-
-def _capitalized_names(text: str) -> List[str]:
-    """Capitalised words that are not the first word (likely proper nouns)."""
-    words = re.findall(r"\S+", text or "")
-    return [re.sub(r"[^\w]", "", w) for w in words[1:] if w[:1].isupper() and len(re.sub(r"[^\w]", "", w)) >= 2]
-
-
-def guard_reconciled(aligned: List[Dict], texts: List[str]) -> List[str]:
-    """Keep the LLM text only when it does not shorten or rename the Whisper text.
-
-    Falls back to the Whisper text for a block when the LLM output is much shorter, or when a
-    proper noun present in the Whisper text is missing from the LLM output.
-    """
-    result = []
-    for item, llm_text in zip(aligned, texts):
-        whisper_text = (item.get("whisper_text") or "").strip()
-        if not whisper_text:
-            result.append(llm_text)
-            continue
-        too_short = len(llm_text) < MIN_LENGTH_RATIO * len(whisper_text)
-        names_lost = any(name not in llm_text for name in _capitalized_names(whisper_text))
-        result.append(whisper_text if (too_short or names_lost) else llm_text)
-    return result
-
-
 def reconcile_with_gemini(aligned: List[Dict], api_key: str, model: str) -> List[str]:
-    """Call Gemini once for the whole aligned list. Raises on API or parse errors."""
-    from google import genai
-    from google.genai import types
-
-    template = PROMPT_PATH.read_text(encoding="utf-8")
-    prompt = build_prompt(template, aligned)
-    client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=120_000))
+    """Propose minimal edits with Gemini, apply them, then check meaning. Raises on API or parse errors."""
+    client, types = _gemini_client(api_key)
     try:
         response = client.models.generate_content(
             model=model,
-            contents=prompt,
+            contents=build_edit_prompt(EDIT_PROMPT_PATH.read_text(encoding="utf-8"), aligned),
             config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION),
         )
     finally:
         client.close()
-    texts = guard_reconciled(aligned, parse_reconciled(response.text, expected=len(aligned)))
 
-    # Semantic check: only blocks that differ from the Whisper text need a judgement.
+    edits = parse_edits(response.text)
+    texts, applied, skipped = apply_edits(aligned, edits)
+    logger.info(f"[hybrid-llm] proposed={len(edits)} applied={applied} skipped={skipped}")
+    texts = guard_reconciled(aligned, texts)
+
     changed = [
         i for i, (item, text) in enumerate(zip(aligned, texts))
         if (item.get("whisper_text") or "").strip() and text.strip() != item["whisper_text"].strip()
@@ -150,4 +159,5 @@ def reconcile_with_gemini(aligned: List[Dict], api_key: str, model: str) -> List
     kept = [True] * len(aligned)
     for i, ok in zip(changed, verdicts):
         kept[i] = ok
+    logger.info(f"[hybrid-llm] judge kept={sum(verdicts)} reverted={len(verdicts) - sum(verdicts)}")
     return revert_changed(aligned, texts, kept)
