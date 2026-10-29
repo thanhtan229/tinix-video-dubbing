@@ -66,6 +66,7 @@ MENU_CFG_TTS = [
     ("cosyvoice", "CosyVoice-TTS", None),
     ("chattts", "ChatTTS", None),
     ("kokoro", "Kokoro-TTS", None),
+    ("vieneu", "VieNeu-TTS (Local)", None),
     ("fishtts", "Fish-TTS", None),
     ("clone", tr("Clone-Voice TTS"), None),
 

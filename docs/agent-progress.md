@@ -84,7 +84,9 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 
 - Found: `videotrans/params.json` (git-ignored, the user's own settings) keeps values saved from earlier defaults. The stored `ocr_crop_box` and `erase_sub_area` were still `(0.75, 0.96, 0.05, 0.95)`, which overrode the new defaults in code, so the UI showed the old boxes. Both were updated to `(0.68, 0.98, 0.05, 0.95)` on this machine because they still held the old default, not a user choice.
 - Keys missing from `params.json` (for example `vieneu_python`) take the code default at runtime, so they work without editing the file.
-- Open: existing installs keep old saved values when a default changes in code. A migration (replace a stored value only when it equals the previous default) would prevent this for future default changes. Not implemented.
+- Migration added (`PREVIOUS_DEFAULTS` and `migrate_stored_defaults` in `_app_params.py`): a stored value is replaced by the current default only when it still equals the previous default. Covers `ocr_crop_box` and `erase_sub_area`. Tests: 4 pass. Add a key there whenever a default changes.
+- VieNeu settings window: menu item "VieNeu-TTS (Local)" in the TTS menu opens `ui/vieneu.py` / `winform/vieneu.py`. It sets the `vieneu_python` path (with a file picker) and saves it to `params.json`. Checked offscreen: the window opens with the saved path.
+- Test video: `D:\___TOOLS\__TINIX\Tinix Video Dubbing\output_test\en_to_vi_vieneu_dub.mp4` (48.66 s, dubbed Vietnamese with VieNeu) and `en_to_vi_vieneu_dub.vi.srt`. The source is a downloaded clip of someone else's video, used for local testing only.
 
 ## VieNeu-TTS channel (2026-10-29, approved)
 

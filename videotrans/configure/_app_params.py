@@ -10,6 +10,21 @@ from videotrans.configure._paths import ROOT_DIR
 from videotrans.configure._logging import _write_with_retry
 
 
+# Keys whose previous default changed. A stored value is replaced by the current default only
+# when it still equals the previous default, so values the user chose are never overwritten.
+PREVIOUS_DEFAULTS = {
+    "ocr_crop_box": [0.75, 0.96, 0.05, 0.95],
+    "erase_sub_area": [0.75, 0.96, 0.05, 0.95],
+}
+
+
+def migrate_stored_defaults(loaded: Dict, defaults: Dict) -> Dict:
+    for key, previous in PREVIOUS_DEFAULTS.items():
+        if key in loaded and key in defaults and list(loaded[key]) == previous:
+            loaded[key] = list(defaults[key])
+    return loaded
+
+
 @dataclass
 class AppParams:
     """
@@ -38,6 +53,7 @@ class AppParams:
                 # 单独更新 f5tts_role
                 loaded['f5tts_role'] = (
                     "\n".join(set((loaded['f5tts_role'].strip() + "\n" + default['f5tts_role']).split("\n")))).strip()
+                loaded = migrate_stored_defaults(loaded, default)
                 default.update(loaded)
             except (OSError, json.JSONDecodeError):
                 pass
