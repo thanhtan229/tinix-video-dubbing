@@ -30,17 +30,17 @@ def set_ass_font(srtfile: str) -> str:
     ass_file_path = f'{srtfile[:-3]}ass'
     help_ffmpeg.runffmpeg(['-y', '-i', edit_srt, ass_file_path])
 
+    from videotrans.configure.constants import DEFAULT_STYLE
     JSON_FILE = f'{ROOT_DIR}/videotrans/ass.json'
-    if not os.path.exists(JSON_FILE):
-        logger.debug(f"[set_ass_font] 未修改硬字幕样式，跳过样式替换")
-        return ass_file_path
-
-    try:
-        with open(JSON_FILE, 'r', encoding='utf-8-sig') as f:
-            style = json.load(f)
-    except Exception as e:
-        logger.exception(f"[set_ass_font] 错误：无法读取或解析 JSON 文件 {JSON_FILE}: {e}", exc_info=True)
-        return ass_file_path
+    # Without a user style file, use the project default (small text on a semi-transparent box).
+    style = dict(DEFAULT_STYLE)
+    if os.path.exists(JSON_FILE):
+        try:
+            with open(JSON_FILE, 'r', encoding='utf-8-sig') as f:
+                style = json.load(f)
+        except Exception as e:
+            logger.exception(f"[set_ass_font] 错误：无法读取或解析 JSON 文件 {JSON_FILE}: {e}", exc_info=True)
+            return ass_file_path
 
     default_style = (
         f"Style: {style.get('Name', 'Default')},"

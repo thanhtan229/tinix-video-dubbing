@@ -96,6 +96,14 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 - Earlier blocked result (first key): Gemini comparison (TTS, translation, recognition) with the new key. The key's project has no free tier (HTTP 403 "free tier is not available for this project") for every Gemini model tried. `gemini-2.5-flash-lite` returns 404 "no longer available to new users". Needs billing enabled on that project, or a key from a project with free tier or billing.
 - Test video: `D:\___TOOLS\__TINIX\Tinix Video Dubbing\output_test\en_to_vi_vieneu_dub.mp4` (48.66 s, dubbed Vietnamese with VieNeu) and `en_to_vi_vieneu_dub.vi.srt`. The source is a downloaded clip of someone else's video, used for local testing only.
 
+## Subtitle readability decision (2026-10-29, approved)
+
+- Source hardsub removal is per video: the "erase mode" and "erase area" controls on the main window apply to the next run only. Default stays off (mode 0).
+- Burned-in subtitle default changed (`DEFAULT_STYLE` in `constants.py`): font size 11 (was 16), white text on a semi-transparent black box (`BorderStyle 3`, `OutlineColour &H80000000&`, outline 2), bottom margin 15. When no `videotrans/ass.json` exists, `set_ass_font` now uses this default instead of the ffmpeg default style (which gave large text with a thin outline). A user style file still overrides it.
+- Checked: a sample ASS file has the new style line; a rendered frame of the test video shows the Vietnamese line at the bottom on a semi-transparent box. The old subtitles visible in that frame come from the test video itself (which already had burned text), not from the new style.
+- Not done: line-length limit for Vietnamese (2 lines, about 35 characters) was proposed earlier but not approved; not implemented.
+- Tests: 2 new (`tests/test_hardsub_style.py`). Full suite 528 PASS, no new failures.
+
 ## VieNeu-TTS channel (2026-10-29, approved)
 
 - New TTS channel `VIENEU_TTS = 41` ("VieNeu-TTS(Local)", `videotrans/tts/_vieneu.py`). It calls a long-lived worker (`videotrans/tts/_vieneu_worker.py`) that runs in the VieNeu-TTS Python environment, so the project venv does not get the VieNeu dependencies. The worker loads the model once (about 55 s), then answers JSON requests over stdin/stdout.
