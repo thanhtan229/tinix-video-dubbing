@@ -18,6 +18,11 @@ import wave
 import base64
 
 
+def is_daily_quota_error(message: str) -> bool:
+    text = (message or '').lower()
+    return 'perday' in text or 'per day' in text
+
+
 @dataclass(repr=False)
 class GEMINITTS(BaseTTS):
 
@@ -74,7 +79,8 @@ class GEMINITTS(BaseTTS):
                 )
                 break
             except ClientError as e:
-                if getattr(e, 'code', None) != 429 or attempt == 5:
+                # Daily quota will not reset within a retry window; fail at once so requests are not wasted.
+                if getattr(e, 'code', None) != 429 or attempt == 5 or is_daily_quota_error(str(e)):
                     raise
                 logger.warning(f'[gemini-tts] rate limited, retry {attempt} in 21s')
                 time.sleep(21)
