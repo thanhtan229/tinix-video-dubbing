@@ -15,6 +15,7 @@ Updated: 2026-10-29
 - Git history rewritten to drop large files (`ffmpeg.zip`, `ffmpeg/ffmpeg.zip`, `pretrained_models.zip`, `pretrained_models/`, `pretrained_models0/`). Only the remote `tinix` was force-pushed. Pre-rewrite backup bundle: `D:\___TOOLS\__TINIX\_backups\pyvideotrans_pre_rewrite_20261028_2228\repo-all.bundle`.
 - Gemini live check with the configured key and model `gemini-2.5-flash-lite`: model list returned 60 models; a short generate call returned `OK`. The key was not printed.
 - Reconciler noise filter: OCR results with fewer than two visible characters are dropped (`_reconciler.py`).
+- OCR line confidence filter: lines with RapidOCR score below `MIN_LINE_SCORE = 0.85` are dropped (`_rapidocr.py`, `filter_ocr_lines`). On the real 45 s clip (dump of 194 frames) this keeps about 98% of subtitle-band lines and drops about 63% of overlay lines. End-to-end OCR on the same clip went from 35 items to 32, with overlay-only entries removed.
 
 ## Real-video check (2026-10-29)
 
@@ -35,7 +36,8 @@ Source: a local downloaded video with speech and a burned-in subtitle at about 7
 
 ## Known gaps
 
-- OCR quality on real videos is poor: persistent on-screen overlays are picked up and subtitle words are merged. Needs a filter (for example confidence threshold or region exclusion) before OCR text can be trusted.
+- OCR quality on real videos is still weak. The confidence filter removes most overlay-only entries, but overlay fragments (for example `HObE`, `MA`) still attach to the end of subtitle lines, and subtitle words are sometimes merged. OCR text is only used as context in the hybrid path, so Whisper remains the text source.
+- On the clean synthetic clip the default crop `(0.75, 0.96)` cuts the top of the second subtitle; with the confidence filter that line is now dropped rather than shown as garbage.
 - The OCR crop default is unresolved: a tighter band around the real subtitle may be better than either tested box, but this was not measured.
 - `videotrans/styles/style.qss` takes upstream's version; local styling for the new controls is not carried over.
 - The 260 new Vietnamese strings were written by the agent and have not been reviewed by a native speaker.
@@ -51,7 +53,7 @@ Source: a local downloaded video with speech and a burned-in subtitle at about 7
 
 ## Recommended next steps
 
-1. Add an OCR confidence threshold and skip overlay regions, then re-run the real-video check and compare OCR noise.
+1. Remove overlay fragments that attach to subtitle lines (for example a per-line token filter for short uppercase/digit tokens), then re-run the real-video check.
 2. Decide the OCR crop default by measuring a tighter band around the real subtitle on several videos.
 3. Run the hybrid LLM step on a short segment to check its effect on text quality.
 4. Review the new Vietnamese strings with a native speaker.
