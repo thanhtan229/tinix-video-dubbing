@@ -27,6 +27,10 @@ Source: a local downloaded video with speech and a burned-in subtitle at about 7
 - The earlier reconciler change that replaced merged Whisper segments with OCR text made the hybrid output worse than Whisper alone on this video. It was reverted: Whisper text is kept for every segment, and OCR text is attached as context.
 - The wider OCR crop default `(0.68, 0.98)` did not help on this video (38 items against 35, similar noise). It was reverted to `(0.75, 0.96, 0.05, 0.95)`. The clean synthetic clip did read better with the wider box; this trade-off is not resolved.
 
+## Real-clip OCR with the token filter (2026-10-29)
+
+Full OCR on the 45 s clip at default settings, with confidence and token filters: 33 items. Sample: `Alright,big day:`, `today we arelaunching Muse`, `and works24/7tohelpyouachieve.them HObE`, `Muse doesn'tjustanswer questions Ise`. Most overlay-only entries are gone. Residual mixed-case fragments remain (`HObE`, `HQbE`, `ISIMA`); the token rule only covers all-caps fragments up to four letters. The count moved from 32 to 33 between runs because items are grouped by time, not because the filter added items.
+
 ## Verification
 
 - Full suite: **496 passed, 123 failed**. The 123 failures also occur on upstream `origin/main`; the branch introduced **0 new failures** (compared per test id).
@@ -54,7 +58,7 @@ Source: a local downloaded video with speech and a burned-in subtitle at about 7
 
 ## Recommended next steps
 
-1. Re-run the real-video OCR end to end with the token filter and record the item count and sample text in this file.
+1. Handle mixed-case overlay fragments that the current token rule misses (for example `HObE`, `HQbE` and `ISIMA`), for example a rule for short tokens with three or more uppercase letters. Check the rule on several videos first, because a blanket rule can remove real capitalised words.
 2. Decide the OCR crop default by measuring a tighter band around the real subtitle on several videos.
 3. Run the hybrid LLM step on a short segment to check its effect on text quality.
 4. Review the new Vietnamese strings with a native speaker.
