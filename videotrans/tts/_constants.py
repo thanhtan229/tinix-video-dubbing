@@ -66,6 +66,7 @@ OPENROUTER_API = 37
 DEEPGRAM_TTS = 38
 FISHAUDIOAPI_TTS=39
 CLONE_VOICE_TTS = 40
+VIENEU_TTS = 41
 
 # 支持克隆的渠道，即存在 clone 配音角色
 SUPPORT_CLONE = [
@@ -188,6 +189,7 @@ ID_NAME_DICT = {
                                 imp="._geminitts",
                                 key_name="gemini_key",
                                 win="gemini"),
+    VIENEU_TTS: ChannelProvider("VieNeu-TTS(Local)", imp="._vieneu"),
     ELEVENLABS_TTS: ChannelProvider("Elevenlabs.io",
                                     imp="._elevenlabs",
                                     key_name="elevenlabstts_key",

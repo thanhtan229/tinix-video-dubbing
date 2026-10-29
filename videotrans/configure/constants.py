@@ -87,6 +87,7 @@ CHATTTS_ROLES = "11,12,16,2222,4444,6653,7869,9999,5,13,14,1111,3333,4099,5099,5
 OPENAITTS_ROLES = "alloy,ash,ballad,coral,echo,fable,onyx,nova,sage,shimmer,verse"
 XAITTS_ROLES = 'eve,ara,rex,sal,leo'
 MITTS_ROLES = 'mimo_default,default_zh,冰糖,茉莉,苏打,白桦,Mia,Milo,Dean,Chloe,default_en'
+VIENEU_ROLES = "Minh Đức,Phạm Tuyên,Thái Sơn,Xuân Vĩnh,Thanh Bình,Trúc Ly,Ngọc Linh,Đoan Trang,Mai Anh,Thục Đoan,Minh Triết,Thùy Dung,Quang Sơn,Ngọc Trân,Mỹ Duyên,Quỳnh Anh,Đức Trí,Kim Thanh,Ngọc Huyền,Adam"
 GEMINITTS_ROLES = "Zephyr,Puck,Charon,Kore,Fenrir,Leda,Orus,Aoede,Callirrhoe,Autonoe,Enceladus,Iapetus,Umbriel,Algieba,Despina,Erinome,Algenib,Rasalgethi,Laomedeia,Achernar,Alnilam,Schedar,Gacrux,Pulcherrima,Achird,Zubenelgenubi,Vindemiatrix,Sadachbia,Sadaltager,Sulafat"
 
 

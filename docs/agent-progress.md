@@ -80,6 +80,13 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
   - Live run on the 60 s Vietnamese clip with `gemini-2.5-flash-lite`: 17 subtitle items; the transcript has punctuation and corrects several Whisper errors (`nước sôi`, `nở`, `cắt ớt tươi`, `topping`).
   - Default Gemini ASR model changed from `gemini-3.5-transcribe` (returns empty text through `generate_content`) to `gemini-2.5-flash-lite` (approved 2026-10-29), in `GEMINI_ASR_MODELS`.
 
+## VieNeu-TTS channel (2026-10-29, approved)
+
+- New TTS channel `VIENEU_TTS = 41` ("VieNeu-TTS(Local)", `videotrans/tts/_vieneu.py`). It calls a long-lived worker (`videotrans/tts/_vieneu_worker.py`) that runs in the VieNeu-TTS Python environment, so the project venv does not get the VieNeu dependencies. The worker loads the model once (about 55 s), then answers JSON requests over stdin/stdout.
+- Setting `vieneu_python` in `params.json` points to `D:/___TOOLS/__TINIX/Tinix-VieNeu-TTS/VieNeu-TTS/.venv/Scripts/python.exe` (machine-specific default). Worker logs go to `logs/vieneu_worker.log`.
+- Voices: 20 preset voices (`VIENEU_ROLES`), default `Phạm Tuyên`. Output is 48 kHz WAV.
+- Checks: worker synthesis of two Vietnamese sentences (3.36 s, not silent). English to Vietnamese end-to-end on a 45 s clip: translation with Gemini, 15/15 dubbed with VieNeu, final video 48.66 s with dubbed audio. Whisper transcribes the dubbed Vietnamese audio with the translated content. Tests: 3 channel tests pass; full suite 516 PASS, no new failures.
+
 ## English to Vietnamese dubbing run (2026-10-29)
 
 - Input: 45 s English clip. Recognition Whisper `large-v3-turbo` (CPU). Translation Gemini (`gemini-2.5-flash-lite`) to Vietnamese: 15 blocks, natural Vietnamese (`vi.srt`). Works.

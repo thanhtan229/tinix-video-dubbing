@@ -359,6 +359,9 @@ def role_menu(tts_type, langcode=None) -> List:
     if tts_type == tts.GEMINI_TTS:
         return constants.GEMINITTS_ROLES.split(',')
 
+    if tts_type == tts.VIENEU_TTS:
+        return constants.VIENEU_ROLES.split(',')
+
     if tts_type == tts.ELEVENLABS_TTS:
         return get_elevenlabs_role()
     if tts_type == tts.G_TTS:
