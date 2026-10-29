@@ -6,13 +6,14 @@ from dataclasses import dataclass, field
 from typing import Union, Dict, List
 
 from google import genai
-from google.genai.errors import APIError
+from google.genai.errors import APIError, ClientError
 from google.genai import types
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_not_exception_type, before_log, after_log
 from videotrans.configure.config import params, logger, settings
 from videotrans.configure.excepts import NO_RETRY_EXCEPT, StopTask
 from videotrans.tts._base import BaseTTS
 from videotrans.util.help_misc import vail_file
+import time
 import wave
 import base64
 
@@ -56,18 +57,27 @@ class GEMINITTS(BaseTTS):
         )
 
 
-        response = client.models.generate_content(
-            model=model,
-            contents=text,
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice)
-                    )
-                ),
-            ),
-        )
+        # Free tier allows a few TTS requests per minute; wait and retry on 429 instead of failing the task.
+        for attempt in range(1, 6):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=text,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["AUDIO"],
+                        speech_config=types.SpeechConfig(
+                            voice_config=types.VoiceConfig(
+                                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice)
+                            )
+                        ),
+                    ),
+                )
+                break
+            except ClientError as e:
+                if getattr(e, 'code', None) != 429 or attempt == 5:
+                    raise
+                logger.warning(f'[gemini-tts] rate limited, retry {attempt} in 21s')
+                time.sleep(21)
         pcm = response.candidates[0].content.parts[0].inline_data.data
         self.wave_file(file_name, pcm)
 

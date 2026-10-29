@@ -80,6 +80,12 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
   - Live run on the 60 s Vietnamese clip with `gemini-2.5-flash-lite`: 17 subtitle items; the transcript has punctuation and corrects several Whisper errors (`nước sôi`, `nở`, `cắt ớt tươi`, `topping`).
   - Default Gemini ASR model changed from `gemini-3.5-transcribe` (returns empty text through `generate_content`) to `gemini-2.5-flash-lite` (approved 2026-10-29), in `GEMINI_ASR_MODELS`.
 
+## English to Vietnamese dubbing run (2026-10-29)
+
+- Input: 45 s English clip. Recognition Whisper `large-v3-turbo` (CPU). Translation Gemini (`gemini-2.5-flash-lite`) to Vietnamese: 15 blocks, natural Vietnamese (`vi.srt`). Works.
+- Dubbing blocked: Gemini TTS free tier allows 10 requests per day for `gemini-3.1-flash-tts`, and the daily quota was used up. Gemini TTS also allows 3 requests per minute; `_geminitts.py` now waits 21 s and retries on HTTP 429 (up to 5 tries). Edge-TTS still returns 403. The project has no Vietnamese Piper voice.
+- Next: a Vietnamese TTS channel with quota (Gemini TTS on a later day with a short clip of 10 blocks or fewer, a paid Gemini TTS tier, or integrating a local Vietnamese TTS such as VieNeu-TTS from `Tinix-VieNeu-TTS`).
+
 ## Hybrid LLM step: removed (2026-10-29)
 
 Removed from the pipeline: `videotrans/ocr/_llm_reconcile.py`, the prompts `hybrid_reconcile.txt` and `hybrid_edit.txt`, the `_llm_reconciled_texts` call in the recognition stage, the `hybrid_llm_enabled` setting, and the tests. Hybrid mode now uses the Whisper-first reconciler only (no LLM call).
