@@ -40,6 +40,15 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 - The English clip favours the wider box once the confidence and token filters are on: 191 frames with text against 173, and it reads the first line `Alright,big day:` that the default misses.
 - Decision (approved 2026-10-29): OCR crop default changed to `(0.68, 0.98, 0.05, 0.95)` in params, task config, UI fallbacks and OCR functions. Evidence from both real clips with the filters on. Earlier reverts were measured before the filters.
 
+## Next-step checks (2026-10-29)
+
+- Hybrid LLM step: not implemented. `videotrans/prompts/srt/hybrid_reconcile.txt` exists, but no code calls it and `format_hybrid_prompt_block` is unused. The hybrid path ends at the reconciler, and the recognition stage uses Whisper text. Needs a new feature (Gemini call, parse, write back) before it can be tested.
+- Erase modes, rendered with the real `_build_subtitle_filter` on the Vietnamese clip, area `(0.68, 0.98)`:
+  - Mode 1 (Gaussian blur): original recipe text unreadable; clean edges.
+  - Mode 2 (Cinema Box): dark band hides most text, but the original text remains faintly visible through the 75% alpha. Not fully covered.
+  - Mode 3 (Delogo): text removed, with visible horizontal and vertical streak artifacts in the area.
+- Erase default area is still `(0.75, 0.96)`. For subtitles higher in the frame (like the Vietnamese recipe, about 70–89%), the default erase area would miss the top line, the same issue the OCR default had.
+
 ## Verification
 
 - Full suite: **496 passed, 123 failed**. The 123 failures also occur on upstream `origin/main`; the branch introduced **0 new failures** (compared per test id).
