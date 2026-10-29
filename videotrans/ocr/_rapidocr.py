@@ -139,7 +139,7 @@ class VideoSubtitleExtractor:
     def __init__(
         self,
         video_path: str,
-        crop_box: Tuple[float, float, float, float] = (0.75, 0.96, 0.05, 0.95),
+        crop_box: Tuple[float, float, float, float] = (0.68, 0.98, 0.05, 0.95),
         sample_fps: float = 4.0,
         similarity_threshold: float = 0.80,
         min_subtitle_duration_ms: int = 300,
@@ -343,7 +343,7 @@ class VideoSubtitleExtractor:
 
 def run_ocr_extraction(
     video_file: str,
-    crop_box: Tuple[float, float, float, float] = (0.75, 0.96, 0.05, 0.95),
+    crop_box: Tuple[float, float, float, float] = (0.68, 0.98, 0.05, 0.95),
     callback: Optional[Callable[[int, str], None]] = None
 ) -> List[SrtItem]:
     """Top-level runner for OCR subtitle extraction."""

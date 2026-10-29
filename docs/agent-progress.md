@@ -38,7 +38,7 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 - `抖音2026623-297677.mp4` (Douyin ad, Chinese caption, 45 s). Not analysed further: little subtitle text.
 - Mixed-case token rule (3+ uppercase, 5 letters or fewer): on the English clip it would drop only `myMMA`, a real word. On the Vietnamese clip it drops nothing. Not added.
 - The English clip favours the wider box once the confidence and token filters are on: 191 frames with text against 173, and it reads the first line `Alright,big day:` that the default misses.
-- Open decision: change the OCR crop default to `(0.68, 0.98)`. Evidence now supports it on both real clips; earlier reverted results were measured before the filters.
+- Decision (approved 2026-10-29): OCR crop default changed to `(0.68, 0.98, 0.05, 0.95)` in params, task config, UI fallbacks and OCR functions. Evidence from both real clips with the filters on. Earlier reverts were measured before the filters.
 
 ## Verification
 
