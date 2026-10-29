@@ -56,6 +56,12 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
   - Live check on the six known blocks with the new flow: no meaning drift. One edit applied (`muối ngọc yến … → muối Ngọc Yến …`). The `tất pin → topping` fix was proposed but skipped: `tất pin` appears twice in that block, and the model did not use the longer phrase the prompt asks for. This is a deliberate trade-off: safer, but it misses some correct fixes.
   - Judge and guard are still applied to changed blocks.
   - Unit tests: 23 pass.
+- Measured on 15 random blocks from the Vietnamese clip (seed 20261029), labelled by the user:
+  - Whisper text matches the label on 10 of 15. Final output after the LLM step also matches 10 of 15.
+  - The LLM proposed two edits on these blocks: `tấm bên → temp` (wrong) and removal of `tức` (wrong). The judge reverted both. No correct fix was applied.
+  - Cause: the edit prompt needs OCR evidence, and this video has burned-in text only in roughly 0–30 s (checked by frame sampling; no text at 40 s). Most labelled blocks come from 30–60 s, so there was nothing to correct against.
+  - Labels that need a decision: block 6 is much shorter than the Whisper text (the label drops `Muối tôi đang xài là muối ngọc yến`); block 17's `topping` has no on-screen evidence and is an audio ambiguity.
+  - Missed corrections: `nợ → nở` (block 4), `tắt → cắt` (block 9), `tỏi/hành` (block 13), `tất pin → topping` (block 2 area, repeated phrase).
   - Unit tests for prompt building and response parsing: 8 pass.
 - Erase modes, rendered with the real `_build_subtitle_filter` on the Vietnamese clip, area `(0.68, 0.98)`:
   - Mode 1 (Gaussian blur): original recipe text unreadable; clean edges.
