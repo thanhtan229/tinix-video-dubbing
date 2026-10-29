@@ -5,6 +5,7 @@ import cv2
 import time
 from difflib import SequenceMatcher
 from pathlib import Path
+from collections import Counter
 from typing import List, Optional, Tuple, Callable
 from videotrans.task.taskcfg import SrtItem
 from videotrans.util.tools import ms_to_time_string
@@ -74,6 +75,76 @@ def filter_ocr_lines(ocr_result) -> str:
         if words:
             texts.append(" ".join(words))
     return " ".join(texts)
+
+
+def _has_subtitle_text(text: str) -> bool:
+    """True when a line has at least three letters left after removing overlay fragments."""
+    words = [w for w in str(text or "").split() if not _is_overlay_token(w)]
+    return len("".join(words)) >= 3
+
+
+def pick_subtitle_band(frame_boxes: List[List[Tuple[float, float, float, float]]],
+                       min_share: float = 0.2, pad_y: float = 0.01, pad_x: float = 0.02
+                       ) -> Optional[Tuple[float, float, float, float]]:
+    """Find the source subtitle area from confident text boxes sampled over time.
+
+    frame_boxes: per sampled frame, a list of (ymin, ymax, xmin, xmax) fractions of the frame.
+    Subtitles stay in one vertical band across frames; overlays and noise do not. Returns the
+    padded union box of the most frequent band, or None when no band appears in enough frames.
+    """
+    n = len(frame_boxes)
+    if n == 0:
+        return None
+    counts: Counter = Counter()
+    for boxes in frame_boxes:
+        counts.update({round((ymin + ymax) / 2 / 0.02) for ymin, ymax, _, _ in boxes})
+    if not counts:
+        return None
+    band, hits = counts.most_common(1)[0]
+    if hits / n < min_share:
+        return None
+    chosen = [b for boxes in frame_boxes for b in boxes
+              if abs(round((b[0] + b[1]) / 2 / 0.02) - band) <= 1]
+    return (
+        max(0.0, min(b[0] for b in chosen) - pad_y),
+        min(1.0, max(b[1] for b in chosen) + pad_y),
+        max(0.0, min(b[2] for b in chosen) - pad_x),
+        min(1.0, max(b[3] for b in chosen) + pad_x),
+    )
+
+
+def detect_subtitle_area(video_path: str, sample_fps: float = 1.0, min_score: float = 0.85,
+                         search: Tuple[float, float] = (0.5, 1.0)) -> Optional[Tuple[float, float, float, float]]:
+    """Locate the source hard-subtitle area of a video. Returns (ymin, ymax, xmin, xmax) or None."""
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return None
+    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    y1 = int(search[0] * height)
+    ocr = get_ocr_instance()
+    step = max(1, int(fps / sample_fps))
+    frames = []
+    idx = 0
+    while idx < total:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        ok, frame = cap.read()
+        if not ok:
+            break
+        result, _ = ocr(frame[y1:height, 0:width])
+        boxes = []
+        for box, text, score in result or []:
+            if float(score) < min_score or not _has_subtitle_text(text):
+                continue
+            ys = [p[1] for p in box]
+            xs = [p[0] for p in box]
+            boxes.append(((min(ys) + y1) / height, (max(ys) + y1) / height, min(xs) / width, max(xs) / width))
+        frames.append(boxes)
+        idx += step
+    cap.release()
+    return pick_subtitle_band(frames)
 
 
 def string_similarity(s1: str, s2: str) -> float:

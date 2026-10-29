@@ -107,6 +107,11 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 - Preview rebuilt from existing artifacts (the full pipeline could not run: the daily free-tier limit of 20 requests for `gemini-2.5-flash-lite` was used up). Frames show: source English subtitles covered, Vietnamese one line at a time. The black box from the default area `(0.68–0.98)` is large; a tight box around the source subtitle, or blur mode, looks better.
 - Tests: 3 new (`tests/test_one_line_subtitles.py`). Full suite 531 PASS, no new failures.
 - Preview file: `%LOCALAPPDATA%\Temp\preview_oneline\preview_oneline.mp4` (temporary).
+- Why the black box was too big: the default erase area `(0.68, 0.98)` is the OCR search band, reused as the area to cover. The source subtitle sits in a much narrower band (about 0.74–0.80 of the height), so the box covered about 30% of the frame.
+- Fix (2026-10-29): automatic source-subtitle area. `detect_subtitle_area` samples frames at 1 fps, keeps confident OCR lines with real text, and picks the most frequent vertical band (`pick_subtitle_band`, which needs the band in at least 20% of frames). Overlays at other heights are ignored. Use `--erase_sub_area auto` on the CLI. If no band is found, nothing is erased and a warning is logged. Detection on the test clip gave `(0.734, 0.791, 0.183, 0.967)`, against about `(0.74, 0.80)` from visual check. Detection takes about 160 s for 45 s of video (CPU OCR).
+- Preview with the detected area: `output_test\preview_auto_area_vi.mp4`, frames `preview_auto_15s.png`, `preview_auto_25s.png`. The black bar is now thin and sits on the source subtitle.
+- Known gaps: the automatic area is not yet a GUI option (the "Vùng xóa" button still sets a manual area). Mixed-case overlay fragments (for example `HObE`) are not filtered by the token rule.
+- Tests: 4 new (`tests/test_subtitle_area_detect.py`). Full suite 535 PASS, no new failures.
 - Tests: 2 new (`tests/test_hardsub_style.py`). Full suite 528 PASS, no new failures.
 
 ## VieNeu-TTS channel (2026-10-29, approved)

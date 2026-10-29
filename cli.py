@@ -379,7 +379,7 @@ def build_parser() -> argparse.ArgumentParser:
     vtv_group.add_argument('--erase_sub_mode', type=int, default=0,
                            help='Remove source hard subtitles before burning: 0=off, 1=blur, 2=cinema box, 3=delogo')
     vtv_group.add_argument('--erase_sub_area', type=str, default='0.68,0.98,0.05,0.95',
-                           help='Source subtitle area as ymin,ymax,xmin,xmax fractions of the frame')
+                           help='Source subtitle area as ymin,ymax,xmin,xmax fractions of the frame, or auto')
     vtv_group.add_argument('--clear_cache', action='store_true', default=True, help=tr("help_clear_cache"))
     vtv_group.add_argument('--no-clear-cache', dest='clear_cache', action='store_false', help=tr("help_no_clear_cache"))
 
@@ -494,7 +494,8 @@ def build_vtv_params(args: argparse.Namespace) -> dict:
         "recogn2pass": args.recogn2pass,
         "subtitle_type": args.subtitle_type,
         "erase_sub_mode": args.erase_sub_mode,
-        "erase_sub_area": tuple(float(x) for x in args.erase_sub_area.split(",")),
+        "erase_sub_area": None if args.erase_sub_area.strip().lower() == 'auto'
+                          else tuple(float(x) for x in args.erase_sub_area.split(",")),
         "clear_cache": args.clear_cache,
     }
 

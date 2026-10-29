@@ -446,7 +446,15 @@ class AssembleMixin:
         if erase_mode == 0:
             return f"[0:v]subtitles=filename='{subtitles_file}'[v_out]"
 
-        crop_box = getattr(self.cfg, 'erase_sub_area', (0.68, 0.98, 0.05, 0.95))
+        crop_box = getattr(self.cfg, 'erase_sub_area', None)
+        if crop_box is None:
+            # 'auto': locate the source subtitles with OCR. Never cover a guessed area.
+            from videotrans.ocr._rapidocr import detect_subtitle_area
+            crop_box = detect_subtitle_area(self.cfg.name)
+            if crop_box is None:
+                logger.warning('[erase] no source subtitle area found; source subtitles are kept')
+                return f"[0:v]subtitles=filename='{subtitles_file}'[v_out]"
+            logger.info(f'[erase] detected source subtitle area: {crop_box}')
         w_px = int(self.video_info.get('width', 1920) or 1920)
         h_px = int(self.video_info.get('height', 1080) or 1080)
 
