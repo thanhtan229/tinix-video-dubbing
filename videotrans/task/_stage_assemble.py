@@ -445,7 +445,7 @@ class AssembleMixin:
         if erase_mode == 0:
             return f"[0:v]subtitles=filename='{subtitles_file}'[v_out]"
 
-        crop_box = getattr(self.cfg, 'erase_sub_area', (0.75, 0.96, 0.05, 0.95))
+        crop_box = getattr(self.cfg, 'erase_sub_area', (0.68, 0.98, 0.05, 0.95))
         w_px = int(self.video_info.get('width', 1920) or 1920)
         h_px = int(self.video_info.get('height', 1080) or 1080)
 
@@ -466,7 +466,7 @@ class AssembleMixin:
             return f"[0:v]split[main][crop_part];[crop_part]crop={w}:{h}:{x}:{y},boxblur=luma_radius=15:luma_power=3[blurred];[main][blurred]overlay={x}:{y}[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
         elif erase_mode == 2:
             # Cinema Box
-            return f"[0:v]drawbox=x={x}:y={y}:w={w}:h={h}:color=black@0.75:t=fill[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
+            return f"[0:v]drawbox=x={x}:y={y}:w={w}:h={h}:color=black@1.0:t=fill[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
         elif erase_mode == 3:
             # Delogo
             return f"[0:v]delogo=x={x}:y={y}:w={w}:h={h}:show=0[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"

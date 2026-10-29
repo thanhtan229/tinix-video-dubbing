@@ -42,12 +42,14 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 
 ## Next-step checks (2026-10-29)
 
-- Hybrid LLM step: not implemented. `videotrans/prompts/srt/hybrid_reconcile.txt` exists, but no code calls it and `format_hybrid_prompt_block` is unused. The hybrid path ends at the reconciler, and the recognition stage uses Whisper text. Needs a new feature (Gemini call, parse, write back) before it can be tested.
+- Hybrid LLM step (implemented 2026-10-29): `videotrans/ocr/_llm_reconcile.py` builds the prompt from `prompts/srt/hybrid_reconcile.txt` with the target language set to the source language (no double translation), calls Gemini once for the whole list, and parses one text per block. `_stage_recogn.py` (`_llm_reconciled_texts`) uses it in hybrid mode. Without a Gemini key, or on error, it falls back to Whisper text and shows a status message.
+  - Live check on the Vietnamese clip (first 60 s, 17 blocks): returned 17 blocks 1-to-1, with useful fixes (`tắt` to `tắc`, `ớt tươi`, `topping`). Quality problems found: it shortens and paraphrases (one 2-sentence block lost its second sentence); it renamed a name (`Nhi` to `tôi`). Needs a guard or a prompt change before it is trusted.
+  - Unit tests for prompt building and response parsing: 8 pass.
 - Erase modes, rendered with the real `_build_subtitle_filter` on the Vietnamese clip, area `(0.68, 0.98)`:
   - Mode 1 (Gaussian blur): original recipe text unreadable; clean edges.
-  - Mode 2 (Cinema Box): dark band hides most text, but the original text remains faintly visible through the 75% alpha. Not fully covered.
+  - Mode 2 (Cinema Box): was 75% alpha, so the original text stayed faintly visible. Changed to fully opaque (`black@1.0`, approved 2026-10-29). Re-rendered: the original text is fully hidden and the new subtitle is still visible.
   - Mode 3 (Delogo): text removed, with visible horizontal and vertical streak artifacts in the area.
-- Erase default area is still `(0.75, 0.96)`. For subtitles higher in the frame (like the Vietnamese recipe, about 70–89%), the default erase area would miss the top line, the same issue the OCR default had.
+- Erase default area changed to `(0.68, 0.98, 0.05, 0.95)` in params, task config, UI fallbacks and the erase filter (approved 2026-10-29). Erase colour and crop-dialog starting values were not changed.
 
 ## Verification
 

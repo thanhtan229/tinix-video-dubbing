@@ -156,7 +156,7 @@ class WinActionCheckMixin:
 
         self.cfg['subtitle_type'] = self.main.subtitle_type.currentIndex()
         self.cfg['erase_sub_mode'] = getattr(self.main, 'erase_sub_mode_val', self.main.erase_sub_mode.currentIndex())
-        self.cfg['erase_sub_area'] = getattr(self.main, 'erase_sub_area_val', (0.75, 0.96, 0.05, 0.95))
+        self.cfg['erase_sub_area'] = getattr(self.main, 'erase_sub_area_val', (0.68, 0.98, 0.05, 0.95))
 
         self.cfg['voice_rate'] = self.main.voice_rate.value()
         try:

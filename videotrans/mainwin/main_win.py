@@ -130,7 +130,7 @@ class MainWindow(BindSignalsMixin, LifecycleMixin, QMainWindow, Ui_MainWindow):
 
         _erase_sub_mode = int(params.get('erase_sub_mode', 0))
         self.erase_sub_mode_val = _erase_sub_mode
-        self.erase_sub_area_val = tuple(params.get('erase_sub_area', [0.75, 0.96, 0.05, 0.95]))
+        self.erase_sub_area_val = tuple(params.get('erase_sub_area', [0.68, 0.98, 0.05, 0.95]))
         self.erase_sub_mode.setCurrentIndex(_erase_sub_mode)
         self.btn_erase_area.setVisible(bool(_erase_sub_mode > 0))
 

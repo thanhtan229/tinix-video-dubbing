@@ -94,7 +94,7 @@ class WinActionConfigMixin:
             )
             return
 
-        current_box = getattr(self.main, 'erase_sub_area_val', (0.75, 0.96, 0.05, 0.95))
+        current_box = getattr(self.main, 'erase_sub_area_val', (0.68, 0.98, 0.05, 0.95))
         dialog = CropSubtitleDialog(video_path=video_path, current_box=current_box, parent=self.main)
         dialog.setWindowTitle(tr("Chọn vùng phụ đề cũ cần xóa / làm mờ"))
         if dialog.exec():
