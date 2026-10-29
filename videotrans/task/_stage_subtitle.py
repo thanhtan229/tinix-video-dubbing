@@ -8,6 +8,8 @@ from videotrans.configure.config import tr, ROOT_DIR, settings, logger
 from videotrans.configure import constants
 from videotrans.configure.excepts import VideoTransError
 from videotrans.util.help_srt import get_subtitle_from_srt, simple_wrap, set_ass_font
+from videotrans.util._srt_wrap import one_line_capacity, split_one_line
+from videotrans.util.tools import ms_to_time_string
 
 
 class SubtitleMixin:
@@ -28,6 +30,12 @@ class SubtitleMixin:
             settings.get('cjk_len', 15) if self.cfg.target_language_code[:2] in constants.CJK_LANG else
             settings.get('other_len', 60))
         target_sub_list = get_subtitle_from_srt(self.cfg.target_sub)
+
+        # Burned-in (hard) subtitles on non-CJK targets: one line per block, sized to the frame.
+        one_line = self.cfg.subtitle_type == 1 and self.cfg.target_language_code[:2] not in constants.CJK_LANG
+        if one_line:
+            maxlen = one_line_capacity(int(self.video_info.get('width', 1920) or 1920),
+                                       int(self.video_info.get('height', 1080) or 1080))
 
         srt_string = ""
         _join_flag = ''
@@ -54,7 +62,16 @@ class SubtitleMixin:
             Path(self.cfg.target_dir + "/shuang.srt").write_text(
                 srt_string.replace('###', '') if _join_flag == '###' else srt_string, encoding='utf-8')
         else:
+            _idx = 0
             for i, it in enumerate(target_sub_list):
+                if one_line:
+                    # Each piece is one line; long blocks become consecutive pieces with proportional time.
+                    for p_start, p_end, p_text in split_one_line(it['text'].strip(), it['start_time'],
+                                                                 it['end_time'], maxlen,
+                                                                 self.cfg.target_language_code):
+                        _idx += 1
+                        srt_string += f"{_idx}\n{ms_to_time_string(ms=p_start)} --> {ms_to_time_string(ms=p_end)}\n{p_text}\n\n"
+                    continue
                 tmp = simple_wrap(it['text'].strip(), maxlen, self.cfg.target_language_code)
                 srt_string += f"{it['line']}\n{it['time']}\n{tmp.strip()}\n\n"
             with Path(process_end_subtitle).open('w', encoding='utf-8') as f:

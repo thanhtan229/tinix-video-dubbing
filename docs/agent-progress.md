@@ -101,7 +101,12 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 - Source hardsub removal is per video: the "erase mode" and "erase area" controls on the main window apply to the next run only. Default stays off (mode 0).
 - Burned-in subtitle default changed (`DEFAULT_STYLE` in `constants.py`): font size 11 (was 16), white text on a semi-transparent black box (`BorderStyle 3`, `OutlineColour &H80000000&`, outline 2), bottom margin 15. When no `videotrans/ass.json` exists, `set_ass_font` now uses this default instead of the ffmpeg default style (which gave large text with a thin outline). A user style file still overrides it.
 - Checked: a sample ASS file has the new style line; a rendered frame of the test video shows the Vietnamese line at the bottom on a semi-transparent box. The old subtitles visible in that frame come from the test video itself (which already had burned text), not from the new style.
-- Not done: line-length limit for Vietnamese (2 lines, about 35 characters) was proposed earlier but not approved; not implemented.
+- One-line limit (approved 2026-10-29, "tối đa 1 dòng"): for burned-in subtitles (type 1) with a non-CJK target, each block is split into consecutive one-line pieces (`split_one_line`), sized by `one_line_capacity(width, height)`: 26 characters for 720x1280 or 360x640, 83 for 1920x1080. Time is shared in proportion to piece length. Joining wrapped lines was tried first and rejected: libass then wrapped the text again.
+- Bug found and fixed: with a hardware encoder (for example NVENC) the burn-in path ignored the source-subtitle removal filter. Runs with erase mode on now use the software path, where the filter is built.
+- CLI: `--erase_sub_mode` (0 off, 1 blur, 2 cinema box, 3 delogo) and `--erase_sub_area ymin,ymax,xmin,xmax` added, so per-video removal can be set from the command line.
+- Preview rebuilt from existing artifacts (the full pipeline could not run: the daily free-tier limit of 20 requests for `gemini-2.5-flash-lite` was used up). Frames show: source English subtitles covered, Vietnamese one line at a time. The black box from the default area `(0.68–0.98)` is large; a tight box around the source subtitle, or blur mode, looks better.
+- Tests: 3 new (`tests/test_one_line_subtitles.py`). Full suite 531 PASS, no new failures.
+- Preview file: `%LOCALAPPDATA%\Temp\preview_oneline\preview_oneline.mp4` (temporary).
 - Tests: 2 new (`tests/test_hardsub_style.py`). Full suite 528 PASS, no new failures.
 
 ## VieNeu-TTS channel (2026-10-29, approved)

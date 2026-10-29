@@ -205,7 +205,8 @@ class AssembleMixin:
                 if is_copy_mode:
                     logger.debug(f'[最终视频合成]copy模式，无需重新编码:\n{cmd0 + cmd1 + cmd2}')
                     runffmpeg(cmd0 + cmd1 + cmd2, cmd_dir=self.cfg.cache_folder, force_cpu=True)
-                elif app_cfg.video_codec.startswith('libx') or settings.get('force_lib'):
+                # Source-subtitle removal filters are built only on the software path.
+                elif app_cfg.video_codec.startswith('libx') or settings.get('force_lib') or self.cfg.erase_sub_mode:
                     logger.debug(f'[最终视频合成]不支持硬件编码或指定了强制软编解码:\n{cmd0 + cmd1 + cmd2}')
                     runffmpeg(cmd0 + cmd1 + enc_qua + cmd2, cmd_dir=self.cfg.cache_folder, force_cpu=True)
                 else:

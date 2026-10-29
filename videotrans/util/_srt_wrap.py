@@ -5,6 +5,38 @@ from functools import lru_cache
 from videotrans.configure import constants
 
 
+def split_one_line(text: str, start_ms: int, end_ms: int, capacity: int, language: str = "en"):
+    """Split one subtitle block into consecutive pieces that each fit on one line.
+
+    Pieces share the block's time in proportion to their length, so each piece stays on screen
+    for a sensible time. Returns a list of (start_ms, end_ms, text).
+    """
+    lines = [l.strip() for l in simple_wrap(text, capacity, language).split("\n") if l.strip()]
+    if len(lines) <= 1:
+        return [(int(start_ms), int(end_ms), lines[0] if lines else text.strip())]
+    total = sum(len(l) for l in lines)
+    span = end_ms - start_ms
+    pieces = []
+    cursor = float(start_ms)
+    for i, line in enumerate(lines):
+        duration = span * len(line) / total if i < len(lines) - 1 else end_ms - cursor
+        pieces.append((int(cursor), int(cursor + duration), line))
+        cursor += duration
+    return pieces
+
+
+def one_line_capacity(width: int, height: int, font_size: int = 11, play_res_h: int = 288,
+                       fill: float = 0.9) -> int:
+    """Characters that fit on one burned-in line.
+
+    ASS font sizes are in units of a 288-px-high play area; scale them to the video height, assume an
+    average glyph width of half the em size, and use 90% of the frame width.
+    """
+    font_px = font_size * height / play_res_h
+    glyph_px = 0.5 * font_px
+    return max(10, int(width * fill / glyph_px))
+
+
 @lru_cache
 def simple_wrap(text: str, maxlen: int = 15, language: str = "en") -> str:
     flag = [
