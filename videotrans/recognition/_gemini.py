@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 import random
 
 import httpx,time
@@ -20,6 +22,50 @@ from videotrans.util._srt_parse import ms_to_time_string
 from videotrans.process._stt_utils import _resegment
 from pydub import AudioSegment
 
+TRANSCRIBE_PROMPT = (
+    "Transcribe the speech in this audio{lang}. Return only a JSON array. Each item is an object "
+    '{{"start": <seconds from the start of the audio, number>, "end": <seconds, number>, '
+    '"text": <transcript of that segment, exactly as spoken>}}. '
+    "Use segments of one short sentence or phrase. Do not add any other text."
+)
+
+
+def _strip_code_fence(text: str) -> str:
+    return re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", (text or "").strip())
+
+
+def parse_segments(text: str) -> List[dict]:
+    """Parse the JSON segment list. Skips items with empty text or non-positive duration."""
+    data = json.loads(_strip_code_fence(text))
+    if not isinstance(data, list):
+        raise ValueError("Gemini STT response is not a JSON array")
+    segments = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        start = float(item.get("start", 0))
+        end = float(item.get("end", 0))
+        content = str(item.get("text", "")).strip()
+        if content and end > start:
+            segments.append({"start": start, "end": end, "text": content})
+    return segments
+
+
+def segments_to_words(segments: List[dict]) -> List[dict]:
+    """Spread each segment's time over its words in proportion to word length."""
+    words = []
+    for seg in segments:
+        tokens = seg["text"].split()
+        total = sum(len(t) for t in tokens) or 1
+        span = seg["end"] - seg["start"]
+        cursor = seg["start"]
+        for token in tokens:
+            duration = span * len(token) / total
+            words.append({"word": token, "start": cursor, "end": cursor + duration})
+            cursor += duration
+    return words
+
+
 @dataclass(repr=False)
 class GeminiRecogn(BaseRecogn):
 
@@ -38,30 +84,18 @@ class GeminiRecogn(BaseRecogn):
             )
             logger.debug(f'{self.proxy_str=},{self.detect_language=},{self.model_name=}')
 
-
+            lang = f" in language code {self.detect_language}" if self.detect_language != 'auto' else ""
             audio_file = client.files.upload(file=file)
-            interaction = client.interactions.create(
+            response = client.models.generate_content(
                 model=self.model_name,
-                input=[
-                    {
-                        "type": "audio",
-                        "uri": audio_file.uri,
-                        "mime_type": audio_file.mime_type,
-                    }
+                contents=[
+                    types.Part.from_uri(file_uri=audio_file.uri, mime_type=audio_file.mime_type),
+                    TRANSCRIBE_PROMPT.format(lang=lang),
                 ],
-                generation_config={
-                    "transcription_config": {
-                        "mode": {
-                            "type": "verbatim",
-                            "timestamp_granularities": ["word"],
-                        },
-                        "language_codes":[self.detect_language] if self.detect_language !='auto' else []
-                    }
-                },
-
             )
-            return self.extract_word_annotations(interaction),interaction.output_text
-            
+            segments = parse_segments(response.text)
+            return segments, " ".join(seg["text"] for seg in segments)
+
         except httpx.ConnectTimeout as e:
             raise StopTask(f' {tr("Unable to connect to remote API","Gemini AI")}\n{e}') from e
         except errors.APIError as e:
@@ -71,7 +105,7 @@ class GeminiRecogn(BaseRecogn):
         finally:
             if client:
                 client.close()
-        return None,None
+        return [],""
 
     def _exec(self)->Union[List[SrtItem], None]:
         srts = self._cut()
@@ -86,14 +120,15 @@ class GeminiRecogn(BaseRecogn):
         _min_speech = max(int(float(settings.get('min_speech_duration_ms', 1000))), 200)
         _max_speech = max(min(int(float(settings.get('max_speech_duration_s', 6)) * 1000), 20000), _min_speech + 1000)
         for i,it in enumerate(srts):                       
-            words,_text=self._req(it['filename'])
+            segments,_text=self._req(it['filename'])
             offset = it['start_time'] / 1000.0
+            words = segments_to_words(segments)
             for j,w in enumerate(words):
-                st=float(w.start_offset.replace('s',''))
-                et=float(w.end_offset.replace('s',''))
-                if i==0:
+                st=w['start']
+                et=w['end']
+                if i==0 and j==0:
                     texts[0]['start']=st
-                texts[0]['words'].append({"word": w.text, "start": st + offset, "end": et + offset})
+                texts[0]['words'].append({"word": w['word'], "start": st + offset, "end": et + offset})
                 if i==len(srts)-1 and j==len(words)-1:
                     texts[0]['end']=et
             self.signal(
@@ -155,15 +190,3 @@ class GeminiRecogn(BaseRecogn):
                 "filename":file_name
             })
         return data
-
-
-    @staticmethod
-    def extract_word_annotations(interaction):
-        words = []
-        for step in getattr(interaction, "steps", []) or []:
-            for content in getattr(step, "content", []) or []:
-                for annotation in getattr(content, "annotations", []) or []:
-                    if getattr(annotation, "type", None) == "word_info":
-                        words.append(annotation)
-        return words
-
