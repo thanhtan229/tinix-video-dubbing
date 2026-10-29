@@ -75,7 +75,8 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 - Command: `cli.py --task vtv` on the 60 s Vietnamese clip. Recognition Whisper `large-v3-turbo` (CPU), translation Gemini (provider 6, `gemini-2.5-flash-lite`), dubbing Piper (`en_US-lessac-medium`).
 - Result: 17 subtitle blocks translated, 17 dubbed, final MP4 62.6 s with video and dubbed audio. Dubbed audio loudness equals the standalone dubbed track. Whisper on the English track reads the translated sentences back correctly; proper names are transliterated (`ngak yen salt`).
 - Bug found and fixed: the Gemini translator used the legacy Interactions API, which the server now rejects (HTTP 400: "legacy Interactions API schema is no longer supported"). Migrated to `models.generate_content`, with `ThinkingConfig(thinking_level="high")` kept for gemini-3/4/flash models. Full suite: 506 PASS, no new failures.
-- Not yet fixed: the Gemini speech-recognition provider (`videotrans/recognition/_gemini.py`) and the Gemini TTS provider (`videotrans/tts/_geminitts.py`) use the same legacy Interactions API and are likely broken in the same way. Not tested.
+- Gemini TTS (`videotrans/tts/_geminitts.py`) migrated to `generate_content` with `response_modalities=["AUDIO"]` and a prebuilt voice (2026-10-29). Live check: 4.28 s of non-silent audio for one sentence (voice Kore, model from settings). Spoken content not checked with ASR.
+- Still broken: Gemini speech recognition (`videotrans/recognition/_gemini.py`). Live check confirms HTTP 400 on the legacy Interactions call. The legacy call requests word-level timestamps through `transcription_config`, which `generate_content` does not offer. Migrating needs a decision on timestamp granularity (segment-level via prompt, or word-level with a different method). Not changed.
 
 ## Hybrid LLM step: removed (2026-10-29)
 

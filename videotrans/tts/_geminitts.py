@@ -56,16 +56,18 @@ class GEMINITTS(BaseTTS):
         )
 
 
-        interaction = client.interactions.create(
+        response = client.models.generate_content(
             model=model,
-            input=text,
-            response_format={"type": "audio"},
-            generation_config={
-                "speech_config": [
-                    {"voice": voice}
-                ]
-            }
+            contents=text,
+            config=types.GenerateContentConfig(
+                response_modalities=["AUDIO"],
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice)
+                    )
+                ),
+            ),
         )
-
-        self.wave_file(file_name, base64.b64decode(interaction.output_audio.data))
+        pcm = response.candidates[0].content.parts[0].inline_data.data
+        self.wave_file(file_name, pcm)
 
