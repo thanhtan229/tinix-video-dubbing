@@ -88,3 +88,33 @@ class TestGuardReconciled:
 
     def test_empty_whisper_text_keeps_llm_text(self):
         assert guard_reconciled(_aligned_one(""), ["Hello world"]) == ["Hello world"]
+
+
+from videotrans.ocr._llm_reconcile import build_judge_prompt, parse_judge, revert_changed
+
+
+class TestJudge:
+    def test_prompt_lists_original_and_proposed_pairs(self):
+        prompt = build_judge_prompt([("soi vô", "nước sôi vô")])
+        assert "<INPUT>" in prompt and "[1]" in prompt
+        assert "A: soi vô" in prompt and "B: nước sôi vô" in prompt
+
+    def test_parses_ok_and_changed(self):
+        text = "<JUDGE>\n1 OK\n2 CHANGED\n</JUDGE>"
+        assert parse_judge(text, expected=2) == [True, False]
+
+    def test_accepts_bracket_and_colon_formats(self):
+        assert parse_judge("[1]: OK\n2) changed", expected=2) == [True, False]
+
+    def test_missing_index_raises(self):
+        with pytest.raises(ValueError):
+            parse_judge("1 OK", expected=2)
+
+    def test_empty_response_raises(self):
+        with pytest.raises(ValueError):
+            parse_judge("", expected=1)
+
+    def test_revert_uses_whisper_text_only_for_changed_blocks(self):
+        aligned = [{"whisper_text": "soi vô"}, {"whisper_text": "nợ"}]
+        out = revert_changed(aligned, ["nước sôi vô", "nở."], [False, True])
+        assert out == ["soi vô", "nở."]

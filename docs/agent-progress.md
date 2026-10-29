@@ -47,6 +47,11 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
   - Guard added (`guard_reconciled`): a block falls back to the Whisper text when the LLM text is under 60% of the Whisper length, or when a capitalised word from the Whisper text (not the first word) is missing from the LLM text. Re-run live: the name `Nhi` is kept, and the shortened 2-sentence block is restored in full.
   - Remaining risk: the guard does not catch meaning changes that keep the length and names, for example `đổ nó soi vô` to `đổ nước sôi vô`, `nợ` to `nở`, and `dính luôn` to `không bị`. The LLM output should be reviewed before use in dubbing; the step is opt-in (hybrid mode with a Gemini key).
   - Unit tests: 13 pass (prompt, parse, guard).
+  - Meaning check (added 2026-10-29): a second Gemini call (`judge_with_gemini`) compares each changed block with the Whisper text and answers OK or CHANGED. CHANGED blocks fall back to Whisper text. If the judge call fails, the whole LLM output is discarded and Whisper text is used.
+  - Live check of the judge on known cases: CHANGED for `soi` to `nước sôi`, `nợ` to `nở`, `dính luôn` to `không bị dính` (all three meaning changes caught). OK for `tắt` to `tắc` and `ngọc yến` to `Ngọc Yến`. One false positive: `Cộng một cái` to `Thêm` (reverts to Whisper, which is the safe default).
+  - Still missed: `tất pin gì bỏ vô tất pin đó` rewritten as `có tất cả các loại pin gì thì bỏ pin đó vô` was marked OK. The judge is an LLM and not a guarantee.
+  - Word-level similarity was tested as a second, non-LLM layer. It does not separate the cases (`soi` to `nước sôi` scored 0.74, `tất pin` to `topping` scored 0.57), so it is not used.
+  - Full chain check on six blocks: the `soi/nợ` block reverted to Whisper; the others were accepted.
   - Unit tests for prompt building and response parsing: 8 pass.
 - Erase modes, rendered with the real `_build_subtitle_filter` on the Vietnamese clip, area `(0.68, 0.98)`:
   - Mode 1 (Gaussian blur): original recipe text unreadable; clean edges.

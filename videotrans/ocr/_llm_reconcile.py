@@ -45,6 +45,54 @@ def parse_reconciled(text: str, expected: int) -> List[str]:
     return [texts[i] for i in range(1, expected + 1)]
 
 
+JUDGE_INSTRUCTION = """You compare an original speech transcript (A) with a proposed edit (B) of the same subtitle line.
+Answer OK if B keeps the same meaning as A. Spelling, punctuation, capitalisation and removing filler words are allowed.
+Answer CHANGED if B changes any fact, word meaning, name, number, or adds or drops content.
+Output exactly one line per item in the form "<index> OK" or "<index> CHANGED", wrapped in <JUDGE> tags. No other text."""
+
+
+def build_judge_prompt(pairs: List[tuple]) -> str:
+    """pairs: list of (original_text, proposed_text), numbered from 1."""
+    items = "\n".join(f"[{i}]\nA: {a}\nB: {b}" for i, (a, b) in enumerate(pairs, start=1))
+    return f"{JUDGE_INSTRUCTION}\n\n<INPUT>\n{items}\n</INPUT>\n"
+
+
+def parse_judge(text: str, expected: int) -> List[bool]:
+    """Return True (meaning kept) or False (changed) per item. Raises when any index is missing."""
+    without_think = re.sub(r"<think>.*?</think>", "", text or "", flags=re.I | re.S)
+    verdicts: Dict[int, bool] = {}
+    for match in re.finditer(r"^\s*\[?(\d+)\]?[\s:.)-]+(OK|CHANGED)\b", without_think, re.M | re.I):
+        verdicts[int(match.group(1))] = match.group(2).upper() == "OK"
+    if sorted(verdicts) != list(range(1, expected + 1)):
+        raise ValueError(f"judge returned items {sorted(verdicts)}, expected 1..{expected}")
+    return [verdicts[i] for i in range(1, expected + 1)]
+
+
+def revert_changed(aligned: List[Dict], texts: List[str], kept: List[bool]) -> List[str]:
+    """Use the Whisper text for every block the judge marked as changed."""
+    return [
+        text if ok else (item.get("whisper_text") or text)
+        for item, text, ok in zip(aligned, texts, kept)
+    ]
+
+
+def judge_with_gemini(pairs: List[tuple], api_key: str, model: str) -> List[bool]:
+    """Ask Gemini whether each proposed edit keeps the original meaning."""
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=120_000))
+    try:
+        response = client.models.generate_content(
+            model=model,
+            contents=build_judge_prompt(pairs),
+            config=types.GenerateContentConfig(system_instruction="You are a strict bilingual meaning checker."),
+        )
+    finally:
+        client.close()
+    return parse_judge(response.text, expected=len(pairs))
+
+
 MIN_LENGTH_RATIO = 0.6
 
 
@@ -88,4 +136,18 @@ def reconcile_with_gemini(aligned: List[Dict], api_key: str, model: str) -> List
         )
     finally:
         client.close()
-    return guard_reconciled(aligned, parse_reconciled(response.text, expected=len(aligned)))
+    texts = guard_reconciled(aligned, parse_reconciled(response.text, expected=len(aligned)))
+
+    # Semantic check: only blocks that differ from the Whisper text need a judgement.
+    changed = [
+        i for i, (item, text) in enumerate(zip(aligned, texts))
+        if (item.get("whisper_text") or "").strip() and text.strip() != item["whisper_text"].strip()
+    ]
+    if not changed:
+        return texts
+    verdicts = judge_with_gemini(
+        [(aligned[i]["whisper_text"], texts[i]) for i in changed], api_key, model)
+    kept = [True] * len(aligned)
+    for i, ok in zip(changed, verdicts):
+        kept[i] = ok
+    return revert_changed(aligned, texts, kept)
