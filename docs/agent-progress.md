@@ -70,6 +70,14 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
   - Mode 3 (Delogo): text removed, with visible horizontal and vertical streak artifacts in the area.
 - Erase default area changed to `(0.68, 0.98, 0.05, 0.95)` in params, task config, UI fallbacks and the erase filter (approved 2026-10-29). Erase colour and crop-dialog starting values were not changed.
 
+## Hybrid LLM step: removed (2026-10-29)
+
+Removed from the pipeline: `videotrans/ocr/_llm_reconcile.py`, the prompts `hybrid_reconcile.txt` and `hybrid_edit.txt`, the `_llm_reconciled_texts` call in the recognition stage, the `hybrid_llm_enabled` setting, and the tests. Hybrid mode now uses the Whisper-first reconciler only (no LLM call).
+
+Reason: on the 15 labelled blocks the step applied no correct fix and proposed two wrong edits (both reverted by the meaning check). Its design needs on-screen OCR evidence, and the test video has burned-in text only in roughly 0–30 s. The errors it could not fix were audio errors with no on-screen evidence. Git history keeps the code if it is needed again.
+
+The bullets above that describe the LLM step are kept as the record of what was tested.
+
 ## Verification
 
 - Full suite: **496 passed, 123 failed**. The 123 failures also occur on upstream `origin/main`; the branch introduced **0 new failures** (compared per test id).
@@ -99,5 +107,5 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 
 1. Handle mixed-case overlay fragments that the current token rule misses (for example `HObE`, `HQbE` and `ISIMA`). Not added yet: the only local clip with real subtitle text is the 45 s speech clip. The two other distinct local videos (product ads in `Tinix-Facebook-Hunter/_DOWNLOAD/_TINIX`) have no subtitle-band text above the confidence threshold, so they cannot test the rule. Needs more videos with real speech and hardsubs.
 2. Decide the OCR crop default by measuring a tighter band around the real subtitle on several videos.
-3. Run the hybrid LLM step on a short segment to check its effect on text quality.
+3. Only if a new need appears: a model that flags uncertain Whisper blocks (low confidence) and is measured on a labelled set before use. The earlier LLM step was removed (see below).
 4. Review the new Vietnamese strings with a native speaker.

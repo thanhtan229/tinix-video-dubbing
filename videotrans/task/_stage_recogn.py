@@ -6,36 +6,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import os
 
-from videotrans.configure.config import tr, ROOT_DIR, settings, logger, params
+from videotrans.configure.config import tr, ROOT_DIR, settings, logger
 from videotrans.configure.constants import PUNC_RESTORE_MS, PUNC_RESTORE_HF
 from videotrans.configure.excepts import SpeechToTextError
 from videotrans.recognition import run as run_recogn,  FASTER_WHISPER
 from videotrans.util.help_ffmpeg import conver_to_16k, runffmpeg, cut_from_audio
 from videotrans.util.help_misc import vail_file, is_connect_hf
 from videotrans.util.help_srt import get_subtitle_from_srt, delete_punc
-
-
-def _llm_reconciled_texts(signal, aligned):
-    """Run the Hybrid LLM step. Returns one text per aligned item, or None to keep Whisper text."""
-    if not aligned or not params.get('hybrid_llm_enabled', False):
-        return None
-    from videotrans.ocr._llm_reconcile import select_ocr_blocks, merge_selected, reconcile_with_gemini
-    indices = select_ocr_blocks(aligned)
-    if not indices:
-        return None
-    api_key = str(params.get('gemini_key', '')).split(',')[0].strip()
-    if not api_key:
-        signal(text=tr("Hybrid LLM step skipped: no Gemini API key set. Using Whisper text."))
-        return None
-    model = str(params.get('gemini_model', '')).strip() or 'gemini-flash-latest'
-    try:
-        selected = reconcile_with_gemini([aligned[i] for i in indices], api_key, model)
-        return merge_selected(aligned, indices, selected)
-    except Exception as e:
-        message = str(e).replace(api_key, '[hidden]')
-        logger.exception(f"Hybrid LLM reconcile failed: {message}")
-        signal(text=tr("Hybrid LLM step failed, using Whisper text: ") + message[:200])
-        return None
 
 
 class RecognMixin:
@@ -127,10 +104,9 @@ class RecognMixin:
                 self.signal(text=tr("OCR failed, continuing with Whisper transcript only"))
 
             aligned = align_and_reconcile_transcripts(whisper_subs, ocr_subs)
-            reconciled = _llm_reconciled_texts(self.signal, aligned)
             raw_subtitles = []
-            for idx, it in enumerate(aligned):
-                final_text = reconciled[idx] if reconciled else it["whisper_text"]
+            for it in aligned:
+                final_text = it["whisper_text"]
                 if not final_text and it["ocr_text"]:
                     final_text = it["ocr_text"]
                 raw_subtitles.append(SrtItem(
