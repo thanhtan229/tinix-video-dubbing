@@ -70,6 +70,13 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
   - Mode 3 (Delogo): text removed, with visible horizontal and vertical streak artifacts in the area.
 - Erase default area changed to `(0.68, 0.98, 0.05, 0.95)` in params, task config, UI fallbacks and the erase filter (approved 2026-10-29). Erase colour and crop-dialog starting values were not changed.
 
+## End-to-end dubbing run (2026-10-29)
+
+- Command: `cli.py --task vtv` on the 60 s Vietnamese clip. Recognition Whisper `large-v3-turbo` (CPU), translation Gemini (provider 6, `gemini-2.5-flash-lite`), dubbing Piper (`en_US-lessac-medium`).
+- Result: 17 subtitle blocks translated, 17 dubbed, final MP4 62.6 s with video and dubbed audio. Dubbed audio loudness equals the standalone dubbed track. Whisper on the English track reads the translated sentences back correctly; proper names are transliterated (`ngak yen salt`).
+- Bug found and fixed: the Gemini translator used the legacy Interactions API, which the server now rejects (HTTP 400: "legacy Interactions API schema is no longer supported"). Migrated to `models.generate_content`, with `ThinkingConfig(thinking_level="high")` kept for gemini-3/4/flash models. Full suite: 506 PASS, no new failures.
+- Not yet fixed: the Gemini speech-recognition provider (`videotrans/recognition/_gemini.py`) and the Gemini TTS provider (`videotrans/tts/_geminitts.py`) use the same legacy Interactions API and are likely broken in the same way. Not tested.
+
 ## Hybrid LLM step: removed (2026-10-29)
 
 Removed from the pipeline: `videotrans/ocr/_llm_reconcile.py`, the prompts `hybrid_reconcile.txt` and `hybrid_edit.txt`, the `_llm_reconciled_texts` call in the recognition stage, the `hybrid_llm_enabled` setting, and the tests. Hybrid mode now uses the Whisper-first reconciler only (no LLM call).

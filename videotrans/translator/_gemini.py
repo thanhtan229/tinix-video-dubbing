@@ -28,9 +28,9 @@ class Gemini(BaseTrans):
         client=None
         try:
             model = params.get("gemini_model","gemini-flash-latest")
-            generation_config={}
+            thinking_config = None
             if model.startswith('gemini-3') or model.startswith('gemini-4') or model.startswith('gemini-flash'):
-                generation_config["thinking_level"]="high"
+                thinking_config = types.ThinkingConfig(thinking_level="high")
             
             api_keys=params.get('gemini_key', '').strip().split(',')
             api_key = api_keys[random.randint(0,len(api_keys)-1)]
@@ -45,18 +45,20 @@ class Gemini(BaseTrans):
             
             message=self.prompt.replace('{batch_input}', f'{text}')
             logger.debug(f'{message=}')
-            result = client.interactions.create(
+            result = client.models.generate_content(
                 model=model,
-                input=message,
-                system_instruction="You are a top-tier Subtitle Translation Engine.",
-                generation_config=generation_config
+                contents=message,
+                config=types.GenerateContentConfig(
+                    system_instruction="You are a top-tier Subtitle Translation Engine.",
+                    thinking_config=thinking_config,
+                ),
             )
-            if not result:
+            if not result or not result.text:
                 logger.warning(f'[gemini]请求失败')
                 raise TranslateSrtError(f"[Gemini]result is empty")
 
             match = re.search(r'<TRANSLATE_TEXT>(.*?)(?:</TRANSLATE_TEXT>|$)',
-                              re.sub(r'<think>(.*?)</think>', '', result.output_text, flags=re.I | re.S), re.S | re.I)
+                              re.sub(r'<think>(.*?)</think>', '', result.text, flags=re.I | re.S), re.S | re.I)
             if match:
                 return match.group(1)
             raise TranslateSrtError(f"Gemini result is emtpy")
