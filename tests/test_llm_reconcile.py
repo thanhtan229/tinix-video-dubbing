@@ -60,3 +60,31 @@ class TestParseReconciled:
     def test_empty_response_raises(self):
         with pytest.raises(ValueError):
             parse_reconciled("", expected=1)
+
+
+from videotrans.ocr._llm_reconcile import guard_reconciled
+
+
+def _aligned_one(whisper_text):
+    return [{"whisper_text": whisper_text, "ocr_text": ""}]
+
+
+class TestGuardReconciled:
+    def test_similar_length_llm_text_is_kept(self):
+        assert guard_reconciled(_aligned_one("tôi cho một muỗng đường"), ["Tôi cho một muỗng đường."]) == ["Tôi cho một muỗng đường."]
+
+    def test_much_shorter_llm_text_falls_back_to_whisper(self):
+        whisper = "Công thức Nhi sẽ để trên mạng hình Muối tôi đang xài là muối ngọc yến á"
+        assert guard_reconciled(_aligned_one(whisper), ["Công thức tôi sẽ để trên màn hình."]) == [whisper]
+
+    def test_lost_proper_noun_falls_back_to_whisper(self):
+        whisper = "Mì hôm nay Nhi ăn là mì gấu đỏ quốc dân"
+        assert guard_reconciled(_aligned_one(whisper), ["Mì hôm nay tôi ăn là mì Gấu Đỏ quốc dân."]) == [whisper]
+
+    def test_first_word_capital_is_not_a_proper_noun(self):
+        whisper = "Công thức này áp dụng cho mọi loại mì"
+        llm = "Công thức này áp dụng cho mọi loại mì."
+        assert guard_reconciled(_aligned_one(whisper), [llm]) == [llm]
+
+    def test_empty_whisper_text_keeps_llm_text(self):
+        assert guard_reconciled(_aligned_one(""), ["Hello world"]) == ["Hello world"]

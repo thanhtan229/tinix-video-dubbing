@@ -45,6 +45,33 @@ def parse_reconciled(text: str, expected: int) -> List[str]:
     return [texts[i] for i in range(1, expected + 1)]
 
 
+MIN_LENGTH_RATIO = 0.6
+
+
+def _capitalized_names(text: str) -> List[str]:
+    """Capitalised words that are not the first word (likely proper nouns)."""
+    words = re.findall(r"\S+", text or "")
+    return [re.sub(r"[^\w]", "", w) for w in words[1:] if w[:1].isupper() and len(re.sub(r"[^\w]", "", w)) >= 2]
+
+
+def guard_reconciled(aligned: List[Dict], texts: List[str]) -> List[str]:
+    """Keep the LLM text only when it does not shorten or rename the Whisper text.
+
+    Falls back to the Whisper text for a block when the LLM output is much shorter, or when a
+    proper noun present in the Whisper text is missing from the LLM output.
+    """
+    result = []
+    for item, llm_text in zip(aligned, texts):
+        whisper_text = (item.get("whisper_text") or "").strip()
+        if not whisper_text:
+            result.append(llm_text)
+            continue
+        too_short = len(llm_text) < MIN_LENGTH_RATIO * len(whisper_text)
+        names_lost = any(name not in llm_text for name in _capitalized_names(whisper_text))
+        result.append(whisper_text if (too_short or names_lost) else llm_text)
+    return result
+
+
 def reconcile_with_gemini(aligned: List[Dict], api_key: str, model: str) -> List[str]:
     """Call Gemini once for the whole aligned list. Raises on API or parse errors."""
     from google import genai
@@ -61,4 +88,4 @@ def reconcile_with_gemini(aligned: List[Dict], api_key: str, model: str) -> List
         )
     finally:
         client.close()
-    return parse_reconciled(response.text, expected=len(aligned))
+    return guard_reconciled(aligned, parse_reconciled(response.text, expected=len(aligned)))

@@ -43,7 +43,10 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 ## Next-step checks (2026-10-29)
 
 - Hybrid LLM step (implemented 2026-10-29): `videotrans/ocr/_llm_reconcile.py` builds the prompt from `prompts/srt/hybrid_reconcile.txt` with the target language set to the source language (no double translation), calls Gemini once for the whole list, and parses one text per block. `_stage_recogn.py` (`_llm_reconciled_texts`) uses it in hybrid mode. Without a Gemini key, or on error, it falls back to Whisper text and shows a status message.
-  - Live check on the Vietnamese clip (first 60 s, 17 blocks): returned 17 blocks 1-to-1, with useful fixes (`tắt` to `tắc`, `ớt tươi`, `topping`). Quality problems found: it shortens and paraphrases (one 2-sentence block lost its second sentence); it renamed a name (`Nhi` to `tôi`). Needs a guard or a prompt change before it is trusted.
+  - Live check on the Vietnamese clip (first 60 s, 17 blocks): returned 17 blocks 1-to-1, with useful fixes (`tắt` to `tắc`, `topping`). Before the guard it shortened blocks (one 2-sentence block lost its second sentence) and renamed `Nhi` to `tôi`.
+  - Guard added (`guard_reconciled`): a block falls back to the Whisper text when the LLM text is under 60% of the Whisper length, or when a capitalised word from the Whisper text (not the first word) is missing from the LLM text. Re-run live: the name `Nhi` is kept, and the shortened 2-sentence block is restored in full.
+  - Remaining risk: the guard does not catch meaning changes that keep the length and names, for example `đổ nó soi vô` to `đổ nước sôi vô`, `nợ` to `nở`, and `dính luôn` to `không bị`. The LLM output should be reviewed before use in dubbing; the step is opt-in (hybrid mode with a Gemini key).
+  - Unit tests: 13 pass (prompt, parse, guard).
   - Unit tests for prompt building and response parsing: 8 pass.
 - Erase modes, rendered with the real `_build_subtitle_filter` on the Vietnamese clip, area `(0.68, 0.98)`:
   - Mode 1 (Gaussian blur): original recipe text unreadable; clean edges.
