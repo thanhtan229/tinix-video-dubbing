@@ -126,6 +126,7 @@ class TaskCfgBase:
     target_wav_output: Union[os.PathLike, str] = None  # 目标语言音频输出，存在于目标文件夹下
     erase_sub_mode: int = 0  # 0=Không xóa, 1=Gaussian Blur, 2=Cinema Box, 3=Delogo
     erase_sub_area: tuple = (0.68, 0.98, 0.05, 0.95)  # (ymin, ymax, xmin, xmax)
+    erase_feather: int = 0  # px of soft edge for blur; 0 = automatic
 
 
 # 语音识别

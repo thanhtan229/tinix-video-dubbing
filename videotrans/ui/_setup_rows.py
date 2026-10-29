@@ -258,6 +258,13 @@ def _create_alignment_row(ui, parent):
     ui.erase_auto.setText(tr("Tự động dò"))
     ui.erase_auto.setToolTip(tr("Tự động tìm vùng phụ đề gốc bằng OCR. Chậm hơn khoảng vài phút với video dài."))
     ui.erase_auto.setVisible(False)
+    ui.erase_feather = QtWidgets.QSpinBox(parent)
+    ui.erase_feather.setObjectName("erase_feather")
+    ui.erase_feather.setRange(0, 30)
+    ui.erase_feather.setPrefix(tr("Mềm viền: "))
+    ui.erase_feather.setSuffix(" px")
+    ui.erase_feather.setToolTip(tr("Độ mềm viền vùng làm mờ (px). 0 = tự động."))
+    ui.erase_feather.setVisible(False)
 
     layout.addWidget(ui.align_btn)
     layout.addWidget(ui.voice_autorate)
@@ -268,6 +275,7 @@ def _create_alignment_row(ui, parent):
     layout.addWidget(ui.erase_sub_mode)
     layout.addWidget(ui.btn_erase_area)
     layout.addWidget(ui.erase_auto)
+    layout.addWidget(ui.erase_feather)
 
     ui.set_adv_status = QtWidgets.QPushButton()
     ui.set_adv_status.setText(tr('More settings'))

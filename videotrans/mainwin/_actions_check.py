@@ -159,6 +159,7 @@ class WinActionCheckMixin:
         # None means: detect the source subtitle area with OCR when the task runs.
         self.cfg['erase_sub_area'] = None if self.main.erase_auto.isChecked() else getattr(
             self.main, 'erase_sub_area_val', (0.68, 0.98, 0.05, 0.95))
+        self.cfg['erase_feather'] = self.main.erase_feather.value()
 
         self.cfg['voice_rate'] = self.main.voice_rate.value()
         try:

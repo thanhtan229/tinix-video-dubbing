@@ -136,6 +136,8 @@ class MainWindow(BindSignalsMixin, LifecycleMixin, QMainWindow, Ui_MainWindow):
         self.erase_sub_mode.setCurrentIndex(_erase_sub_mode)
         self.btn_erase_area.setVisible(bool(_erase_sub_mode > 0))
         self.erase_auto.setVisible(bool(_erase_sub_mode > 0))
+        self.erase_feather.setVisible(bool(_erase_sub_mode > 0))
+        self.erase_feather.setValue(int(params.get('erase_feather', 0) or 0))
         self.erase_auto.setChecked(bool(params.get('erase_auto', False)))
         self.btn_erase_area.setEnabled(not self.erase_auto.isChecked())
 

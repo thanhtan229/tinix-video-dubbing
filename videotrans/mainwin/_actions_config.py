@@ -76,9 +76,15 @@ class WinActionConfigMixin:
         if mode > 0:
             self.main.btn_erase_area.setVisible(True)
             self.main.erase_auto.setVisible(True)
+            self.main.erase_feather.setVisible(True)
         else:
             self.main.btn_erase_area.setVisible(False)
             self.main.erase_auto.setVisible(False)
+            self.main.erase_feather.setVisible(False)
+
+    def erase_feather_change(self, value):
+        params['erase_feather'] = int(value)
+        params.save()
 
     def erase_auto_change(self, checked):
         params['erase_auto'] = bool(checked)

@@ -475,7 +475,7 @@ class AssembleMixin:
             blur_r = min(15, max(1, min(w, h) // 4 - 1))
             # Blur with feathered edges: alpha falls from 255 at the inner edge to 0 at the border, so the
             # blurred band blends into the picture instead of ending in a hard rectangle.
-            feather = max(3, min(w, h) // 6)
+            feather = int(getattr(self.cfg, 'erase_feather', 0) or 0) or max(3, min(w, h) // 6)
             return (
                 f"[0:v]split[main][crop_part];"
                 f"[crop_part]crop={w}:{h}:{x}:{y},boxblur=luma_radius={blur_r}:luma_power=3,format=yuva420p,"
