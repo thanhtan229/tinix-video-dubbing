@@ -86,6 +86,7 @@ Full OCR on the 45 s clip at default settings, with confidence and token filters
 - Keys missing from `params.json` (for example `vieneu_python`) take the code default at runtime, so they work without editing the file.
 - Migration added (`PREVIOUS_DEFAULTS` and `migrate_stored_defaults` in `_app_params.py`): a stored value is replaced by the current default only when it still equals the previous default. Covers `ocr_crop_box` and `erase_sub_area`. Tests: 4 pass. Add a key there whenever a default changes.
 - VieNeu settings window: menu item "VieNeu-TTS (Local)" in the TTS menu opens `ui/vieneu.py` / `winform/vieneu.py`. It sets the `vieneu_python` path (with a file picker) and saves it to `params.json`. Checked offscreen: the window opens with the saved path.
+- Review of the English-to-Vietnamese output: translation keeps product names (`Muse`, `MMA`, `Muse Secure VM`) and reads naturally. No name-transliteration problem appears on this clip, so the translation prompt was left unchanged. The `ngak yen` transliteration seen earlier came from the Vietnamese-to-English run with a Piper English voice.
 - Test video: `D:\___TOOLS\__TINIX\Tinix Video Dubbing\output_test\en_to_vi_vieneu_dub.mp4` (48.66 s, dubbed Vietnamese with VieNeu) and `en_to_vi_vieneu_dub.vi.srt`. The source is a downloaded clip of someone else's video, used for local testing only.
 
 ## VieNeu-TTS channel (2026-10-29, approved)
