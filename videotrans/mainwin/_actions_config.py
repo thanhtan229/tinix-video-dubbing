@@ -51,7 +51,7 @@ class WinActionConfigMixin:
             )
             return
 
-        current_box = getattr(self.main, 'ocr_crop_box_val', (0.75, 0.96, 0.05, 0.95))
+        current_box = getattr(self.main, 'ocr_crop_box_val', (0.68, 0.98, 0.05, 0.95))
         dialog = CropSubtitleDialog(video_path=video_path, current_box=current_box, parent=self.main)
         if dialog.exec():
             new_box = dialog.get_crop_box()

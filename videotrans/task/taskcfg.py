@@ -142,7 +142,7 @@ class TaskCfgSTT(TaskCfgBase):
     rephrase: bool = False  # 0 默认断句不处理 1=LLM重新断句
     fix_punc: int = 0  # 0=默认，1=恢复标点符号，2=移除所有标点
     recogn_mode: int = 0  # 0=Whisper, 1=OCR Subtitle, 2=Hybrid (Whisper+OCR+LLM)
-    ocr_crop_box: tuple = (0.75, 0.96, 0.05, 0.95)  # (ymin, ymax, xmin, xmax)
+    ocr_crop_box: tuple = (0.68, 0.98, 0.05, 0.95)  # (ymin, ymax, xmin, xmax)
 
     def __repr__(self):
         from videotrans.recognition import ALLOW_CHANGE_MODEL

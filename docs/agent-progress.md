@@ -30,7 +30,7 @@ Updated: 2026-10-28
 - `videotrans/styles/style.qss` takes upstream's version; local styling for the new controls is not carried over.
 - The 260 new Vietnamese strings were written by the agent and have not been reviewed by a native speaker.
 - Hybrid mode: OCR failures are reported in the status line and the run continues with Whisper output.
-- Hybrid output after the reconciler fix (`_reconciler.py`): a Whisper segment that spans two on-screen lines is split into one entry per OCR line, using OCR text and timing. On the synthetic clip this gives `Hello world` (0–3.36 s) and `C Second line` (3.36–4.36 s). The stray `C` is still there because it is part of the same OCR line; a single-character filter only removes standalone items. Not fixed.
+- Hybrid output after the reconciler fix (`_reconciler.py`): a Whisper segment that spans two on-screen lines is split into one entry per OCR line, using OCR text and timing. On the synthetic clip this gives `Hello world` (0–3.36 s) and `C Second line` (3.36–4.36 s). The stray `C` came from the crop box, not from the reconciler. The default OCR crop `(0.75, 0.96, 0.05, 0.95)` started at 540 px of a 720 px frame and cut the top of subtitles placed higher. The default is now `(0.68, 0.98, 0.05, 0.95)` in all OCR defaults (params, task config, UI fallbacks, OCR functions). On a clean subtitle-only clip the default now reads `Hello world` and `Second line` exactly. The `sub.mp4` source clip itself has large built-in text plus a second burned subtitle; that double text caused the earlier OCR noise and is a test-data issue.
 - Whisper timing is lost for split segments (entries use OCR timing), so the hybrid path now relies on OCR quality for those lines.
 
 ## Blockers and notes
@@ -43,7 +43,7 @@ Updated: 2026-10-28
 
 ## Recommended next steps
 
-1. Remove the stray leading character in OCR lines (for example `C Second line`), or confirm it is caused by the crop box and fix the box.
+1. Check the new 0.68–0.98 OCR default on real hardsubbed videos whose subtitles sit at other heights, and consider a per-video crop preview.
 2. Run the hybrid check on a real hardsubbed video with natural speech, not the synthetic clip.
 3. Review the new Vietnamese strings with a native speaker.
 
