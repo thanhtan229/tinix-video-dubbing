@@ -471,8 +471,10 @@ class AssembleMixin:
         y = (y // 2) * 2
 
         if erase_mode == 1:
+            # boxblur radius must stay below a quarter of the smaller side (chroma planes), or ffmpeg fails.
+            blur_r = min(15, max(1, min(w, h) // 4 - 1))
             # Gaussian / Box Blur
-            return f"[0:v]split[main][crop_part];[crop_part]crop={w}:{h}:{x}:{y},boxblur=luma_radius=15:luma_power=3[blurred];[main][blurred]overlay={x}:{y}[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
+            return f"[0:v]split[main][crop_part];[crop_part]crop={w}:{h}:{x}:{y},boxblur=luma_radius={blur_r}:luma_power=3[blurred];[main][blurred]overlay={x}:{y}[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
         elif erase_mode == 2:
             # Cinema Box
             return f"[0:v]drawbox=x={x}:y={y}:w={w}:h={h}:color=black@1.0:t=fill[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"

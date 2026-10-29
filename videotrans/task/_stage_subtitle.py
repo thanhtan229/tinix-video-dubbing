@@ -83,7 +83,15 @@ class SubtitleMixin:
         if self.cfg.subtitle_type in [2, 4]:
             return os.path.basename(process_end_subtitle), subtitle_langcode
 
-        process_end_subtitle_ass = set_ass_font(process_end_subtitle)
+        # With source removal on, the subtitle goes where the source subtitle was.
+        margin_v = None
+        if self.cfg.subtitle_type == 1 and self.cfg.erase_sub_mode:
+            if self.cfg.erase_sub_area is None:
+                from videotrans.ocr._rapidocr import detect_subtitle_area
+                self.cfg.erase_sub_area = detect_subtitle_area(self.cfg.name)
+            if self.cfg.erase_sub_area is not None:
+                margin_v = band_margin_v(self.cfg.erase_sub_area)
+        process_end_subtitle_ass = set_ass_font(process_end_subtitle, margin_v=margin_v)
         basename = os.path.basename(process_end_subtitle_ass)
         return basename, subtitle_langcode
 

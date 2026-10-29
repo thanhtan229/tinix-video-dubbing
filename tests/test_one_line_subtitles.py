@@ -22,3 +22,15 @@ def test_long_block_becomes_consecutive_one_line_pieces():
     for a, b in zip(pieces, pieces[1:]):
         assert a[1] == b[0]
     assert " ".join(p[2] for p in pieces) == text
+
+
+from videotrans.util._srt_wrap import band_margin_v
+
+
+def test_margin_centres_subtitle_on_source_band():
+    # Band centred at 0.7625 of the height: 288 * (1 - 0.7625) - 6.6 is about 62 in ASS units.
+    assert band_margin_v((0.734, 0.791, 0.18, 0.97)) == 62
+
+
+def test_margin_is_never_negative():
+    assert band_margin_v((0.95, 1.0, 0.1, 0.9)) >= 0

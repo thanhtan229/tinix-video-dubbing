@@ -6,7 +6,7 @@ from videotrans.configure.config import ROOT_DIR, logger
 from videotrans.util._srt_parse import get_subtitle_from_srt
 
 
-def set_ass_font(srtfile: str) -> str:
+def set_ass_font(srtfile: str, margin_v=None) -> str:
     from . import help_ffmpeg
     """
     Convert SRT to ASS with custom styles:
@@ -42,6 +42,9 @@ def set_ass_font(srtfile: str) -> str:
             logger.exception(f"[set_ass_font] 错误：无法读取或解析 JSON 文件 {JSON_FILE}: {e}", exc_info=True)
             return ass_file_path
 
+    if margin_v is not None:
+        # Place the subtitle on the source subtitle band (bottom-aligned, so MarginV counts from the bottom).
+        style = {**style, 'MarginV': int(margin_v)}
     default_style = (
         f"Style: {style.get('Name', 'Default')},"
         f"{style.get('Fontname', 'Arial')},"

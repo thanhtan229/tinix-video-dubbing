@@ -1,8 +1,17 @@
 # -*- coding: utf-8 -*-
 import re
+from typing import Tuple
 from functools import lru_cache
 
 from videotrans.configure import constants
+
+
+def band_margin_v(area: Tuple[float, float, float, float], play_res_h: int = 288, font_size: int = 11) -> int:
+    """Bottom margin (ASS units) that centres a one-line subtitle on a frame band (ymin, ymax, xmin, xmax)."""
+    ymin, ymax = area[0], area[1]
+    center = (ymin + ymax) / 2
+    half_line = font_size * 1.2 / 2
+    return max(0, int(round((1 - center) * play_res_h - half_line)))
 
 
 def split_one_line(text: str, start_ms: int, end_ms: int, capacity: int, language: str = "en"):
