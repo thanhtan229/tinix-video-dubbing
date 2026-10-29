@@ -93,6 +93,8 @@ class MainWindow(BindSignalsMixin, LifecycleMixin, QMainWindow, Ui_MainWindow):
         _model_name = params.get('model_name')
 
         _recogn_mode = int(params.get('recogn_mode', 0))
+        if _recogn_mode not in (0, 1):  # Hybrid is hidden from the menu; fall back to Whisper
+            _recogn_mode = 0
         self.recogn_mode_val = _recogn_mode
         self.ocr_crop_box_val = tuple(params.get('ocr_crop_box', [0.68, 0.98, 0.05, 0.95]))
         self.recogn_mode.setCurrentIndex(_recogn_mode)

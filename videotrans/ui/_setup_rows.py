@@ -80,9 +80,8 @@ def _create_asr_row(ui, parent):
     ui.recogn_mode.addItems([
         tr("1. Whisper (Âm thanh - ASR)"),
         tr("2. OCR Phụ đề (Video VSE)"),
-        tr("3. Kết hợp Hybrid (Whisper + OCR + LLM)")
     ])
-    ui.recogn_mode.setToolTip(tr("Chọn phương thức nhận diện nội dung video: Qua âm thanh, Quét chữ phụ đề trên video (OCR) hoặc Kết hợp cả hai (Hybrid)."))
+    ui.recogn_mode.setToolTip(tr("Chọn phương thức nhận diện nội dung video: Qua âm thanh hoặc quét chữ phụ đề trên video (OCR)."))
 
     ui.btn_crop_box = QtWidgets.QPushButton(parent)
     ui.btn_crop_box.setObjectName("btn_crop_box")
