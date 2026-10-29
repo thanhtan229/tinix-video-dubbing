@@ -75,8 +75,15 @@ class WinActionConfigMixin:
 
         if mode > 0:
             self.main.btn_erase_area.setVisible(True)
+            self.main.erase_auto.setVisible(True)
         else:
             self.main.btn_erase_area.setVisible(False)
+            self.main.erase_auto.setVisible(False)
+
+    def erase_auto_change(self, checked):
+        params['erase_auto'] = bool(checked)
+        params.save()
+        self.main.btn_erase_area.setEnabled(not checked)
 
     def open_erase_dialog(self):
         from videotrans.component.crop_subtitle_dialog import CropSubtitleDialog

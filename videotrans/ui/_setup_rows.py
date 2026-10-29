@@ -253,6 +253,11 @@ def _create_alignment_row(ui, parent):
     ui.btn_erase_area.setText(tr("📐 Vùng xóa"))
     ui.btn_erase_area.setToolTip(tr("Kéo chọn vị trí khung chữ nhật chứa phụ đề cũ cần làm mờ hoặc che phủ."))
     ui.btn_erase_area.setVisible(False)
+    ui.erase_auto = QtWidgets.QCheckBox(parent)
+    ui.erase_auto.setObjectName("erase_auto")
+    ui.erase_auto.setText(tr("Tự động dò"))
+    ui.erase_auto.setToolTip(tr("Tự động tìm vùng phụ đề gốc bằng OCR. Chậm hơn khoảng vài phút với video dài."))
+    ui.erase_auto.setVisible(False)
 
     layout.addWidget(ui.align_btn)
     layout.addWidget(ui.voice_autorate)
@@ -262,6 +267,7 @@ def _create_alignment_row(ui, parent):
     layout.addWidget(ui.subtitle_type)
     layout.addWidget(ui.erase_sub_mode)
     layout.addWidget(ui.btn_erase_area)
+    layout.addWidget(ui.erase_auto)
 
     ui.set_adv_status = QtWidgets.QPushButton()
     ui.set_adv_status.setText(tr('More settings'))

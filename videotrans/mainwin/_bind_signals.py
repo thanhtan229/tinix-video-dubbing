@@ -38,6 +38,7 @@ class BindSignalsMixin:
         self.btn_crop_box.clicked.connect(self.win_action.open_crop_dialog)
         self.erase_sub_mode.currentIndexChanged.connect(self.win_action.erase_sub_mode_change)
         self.btn_erase_area.clicked.connect(self.win_action.open_erase_dialog)
+        self.erase_auto.toggled.connect(self.win_action.erase_auto_change)
         self.model_name.currentIndexChanged.connect(self.win_action.model_type_change)
 
         self.label.clicked.connect(lambda: open_url(url='https://pyvideotrans.com/proxy'))
