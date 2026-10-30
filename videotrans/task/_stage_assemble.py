@@ -441,23 +441,6 @@ class AssembleMixin:
             raise RuntimeError(f"{stderr},{stdout}")
         return True
 
-    def _bar_overlay(self, x, y, w, h, w_px, h_px, src, dst) -> str:
-        """Rounded, semi-transparent bar over the source subtitle band, slightly larger than the band.
-
-        The bar is drawn once as a PNG in the cache folder and held for the whole video.
-        """
-        from videotrans.util._sub_bar import write_subtitle_bar
-        pad = max(3, h // 5)
-        bx = max(0, x - pad)
-        by = max(0, y - pad)
-        bw = min(w_px - bx, x + w + pad - bx)
-        bh = min(h_px - by, y + h + pad - by)
-        png = os.path.join(self.cfg.cache_folder, 'sub_bar.png')
-        write_subtitle_bar(png, bw, bh, radius=max(2, bh // 3), alpha=0.7)
-        png_arg = os.path.basename(png)  # ffmpeg runs in the cache folder, where the PNG is written
-        return (f"movie=filename={png_arg},format=rgba,loop=loop=-1:size=1,"
-                f"setpts=N/FRAME_RATE/TB[bar];[{src}][bar]overlay={bx}:{by}[{dst}]")
-
     def _build_subtitle_filter(self, subtitles_file: str) -> str:
         erase_mode = getattr(self.cfg, 'erase_sub_mode', 0)
         if erase_mode == 0:
@@ -493,18 +476,17 @@ class AssembleMixin:
             # Blur with feathered edges: alpha falls from 255 at the inner edge to 0 at the border, so the
             # blurred band blends into the picture instead of ending in a hard rectangle.
             feather = int(getattr(self.cfg, 'erase_feather', 0) or 0) or max(3, min(w, h) // 6)
-            clean = (
+            return (
                 f"[0:v]split[main][crop_part];"
                 f"[crop_part]crop={w}:{h}:{x}:{y},boxblur=luma_radius={blur_r}:luma_power=3,format=yuva420p,"
                 f"geq=lum='p(X,Y)':cb='p(X,Y)':cr='p(X,Y)':"
                 f"a='255*min(1,min(min(X,W-1-X),min(Y,H-1-Y))/{feather})'[soft];"
-                f"[main][soft]overlay={x}:{y}[v_clean]"
+                f"[main][soft]overlay={x}:{y}[v_clean];"
+                f"[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
             )
-            return f"{clean};{self._bar_overlay(x, y, w, h, w_px, h_px, 'v_clean', 'v_bar')};[v_bar]subtitles=filename='{subtitles_file}'[v_out]"
         elif erase_mode == 2:
             # Cinema Box
-            clean = f"[0:v]drawbox=x={x}:y={y}:w={w}:h={h}:color=black@1.0:t=fill[v_clean]"
-            return f"{clean};{self._bar_overlay(x, y, w, h, w_px, h_px, 'v_clean', 'v_bar')};[v_bar]subtitles=filename='{subtitles_file}'[v_out]"
+            return f"[0:v]drawbox=x={x}:y={y}:w={w}:h={h}:color=black@1.0:t=fill[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
         elif erase_mode == 3:
             # Delogo
             return f"[0:v]delogo=x={x}:y={y}:w={w}:h={h}:show=0[v_clean];[v_clean]subtitles=filename='{subtitles_file}'[v_out]"
